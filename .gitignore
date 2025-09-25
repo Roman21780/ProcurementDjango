@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.env.*
+*.venv/
+venv/
+ENV/
+env/
+env.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Django
+*.log
+*.pot
+*.pyc
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+static/
+node_modules/
+
+# Pytest
+.cache/
+.coverage
+*.cover
+htmlcov/
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*$py.class
+
+# VS Code
+.vscode/
+
+# mypy
+.mypy_cache/
+
+# Docker
+*.dockerfile
+docker-compose.override.yml
+# Ignore Docker volumes from being committed accidentally
+volumes/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Environment variables
+.env
+.env.*
+
+# Mac OS
+.DS_Store
+
+# PyCharm
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Others
+*.swp
+*.swo
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Ignore migration files if you want (optional)
+# backend/migrations/
