@@ -220,6 +220,86 @@ def export_products_task(shop_id, user_id):
         shop_id: ID магазина
         user_id: ID пользователя
     """
+    try:
+        logger.info(f"Starting export for shop {shop_id}")
+
+        shop = Shop.objects.get(id=shop_id, user_id=user_id)
+
+        # Собираем данные для экспорта
+        export_data = {
+            'shop': shop.name,
+            'categories': [],
+            'goods': []
+        }
+
+        # Экспортируем категории
+        categories = Category.objects.filter(shops=shop)
+        for category in categories:
+            export_data['categories'].append({
+                'id': category.id,
+                'name': category.name
+            })
+
+        # Экспортируем товары
+        products = ProductInfo.objects.filter(shop=shop).prefetch_related(
+            'product_parameters__parameter'
+        )
+
+        for product_info in products:
+            product_data = {
+                'id': product_info.external_id,
+                'category': product_info.product.category.id,
+                'model': product_info.model,
+                'name': product_info.product.name,
+                'price': product_info.price,
+                'price_rrc': product_info.price_rrc,
+                'quantity': product_info.quantity,
+                'parameters': {}
+            }
+
+            # Добавляем параметры
+            for param in product_info.product_parameters.all():
+                product_data['parameters'][param.parameter.name] = param.value
+
+            export_data['goods'].append(product_data)
+
+        # Сохраняем в файл (можно сохранить в медиа директорию)
+        import yaml
+        import os
+        from django.conf import settings
+
+        filename = f"export_shop_{shop_id}_{user_id}.yaml"
+        filepath = os.path.join(settings.MEDIA_ROOT, 'exports', filename)
+
+        # Создаем директорию если не существует
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            yaml.dump(export_data, f,default_flow_style=False, allow_unicode=True)
+
+        logger.info(f"Export completed: {filename}")
+
+        # Отправляем уведомление об успешном экспорте
+        user = User.objects.get(id=user_id)
+        send_email_task.delay(
+            'export_completed',
+            user.email,
+            {
+                'shop_name': shop.name,
+                'filename': filename,
+                'products_count': len(export_data['goods']),
+            }
+        )
+
+        return {
+            'success': True,
+            'filename': filename,
+            'products_count': len(export_data['goods']),
+        }
+
+    except Exception as e:
+        logger.error(f"Export failed for shop {shop_id}: {str(e)}")
+        return {'success': False, 'error': str(e)}
 
 
 @shared_task
@@ -227,6 +307,22 @@ def cleanup_old_tokens_task():
     """
     Очистка старых токенов подтверждения email (запускается по расписанию)
     """
+    from datetime import datetime, timedelta
+    from backend.models import ConfirmEmailToken
+
+    try:
+        # Удаляем токены старше 24 часов
+        cutoff_date = datetime.now() - timedelta(hours=24)
+        deleted_count = ConfirmEmailToken.objects.filter(
+            created_at__lt=cutoff_date
+        ).delete()
+
+        logger.info(f"Cleaned up {deleted_count} old email tokens")
+        return {'success': True, 'deleted_count': deleted_count}
+
+    except Exception as e:
+        logger.error(f"Token cleanup failed: {str(e)}")
+        return {'success': False, 'error': str(e)}
 
 
 @shared_task
@@ -237,7 +333,45 @@ def send_order_notifications_task(order_id):
     Args:
         order_id: ID заказа
     """
+    try:
+        from backend.models import Order
 
+        order = Order.objects.select_related('user', 'contact').prefetch_related(
+            'ordered_items__product_info__product',
+            'ordered_items__product_info__shop__user',
+        ).get(id=order_id)
 
+        # Отправляем уведомление покупателю
+        send_email_task.delay(
+            'order_confirmation',
+            order.user.email,
+            {
+                'order': order,
+                'order_id': order.id,
+                'total_sum': order.total_sum
+            }
+        )
 
+        # Отправляем уведомления поставщикам
+        shops = set()
+        for item in order.ordered_items.all():
+            shops.add(item.product_info.shop)
 
+        for shop in shops:
+            if shop.user and shop.user.email:
+                send_email_task.delay(
+                    'new_order_for_shop',
+                    shop.user.email,
+                    {
+                        'order': order,
+                        'shop': shop,
+                        'order_id': order.id,
+                    }
+                )
+
+        logger.info(f"Order notifications sent for order: {order_id}")
+        return {'success': True}
+
+    except Exception as e:
+        logger.error(f"Failed to send order notifications for order {order_id}: {str(e)}")
+        return {'success': False, 'error': str(e)}
