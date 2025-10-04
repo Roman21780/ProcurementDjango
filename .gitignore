@@ -31,7 +31,6 @@ node_modules/
 htmlcov/
 
 # Byte-compiled / optimized / DLL files
-*.pyc
 *$py.class
 
 # VS Code
