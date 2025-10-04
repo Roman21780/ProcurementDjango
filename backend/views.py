@@ -1,4 +1,3 @@
-from distutils.util import strtobool
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -14,7 +13,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from requests import get
 from ujson import loads as load_json
-from yaml import load as load_yaml, Loader, serialize
+from yaml import load as load_yaml, Loader
 from django.shortcuts import get_object_or_404
 
 from backend.models import (
@@ -50,22 +49,19 @@ class RegisterAccount(APIView):
         # Проверяем пароль на сложность
         try:
             validate_password(request.data['password'])
-        except Exception as password_error:
-            error_array = []
-            for item in password_error:
-                error_array.append(item)
+        except ValidationError as password_error:
             return JsonResponse({
                 'Status': False,
-                'Errors': {'password': error_array}
+                'Errors': {'password': password_error.messages}
             })
 
         # Создаем пользователя
         user_serializer = UserSerializer(data=request.data)
         if user_serializer.is_valid():
-            user_serializer.save()
+            user = user_serializer.save()
             user.set_password(request.data['password'])
             user.save()
-            new_user_registered.send(sender=self.__class__, user_id=user.id)
+            new_user_registered_signal.send(sender=self.__class__, user_id=user.id)
             return JsonResponse({'Status': True})
         else:
             return JsonResponse({
@@ -125,13 +121,10 @@ class AccountDetails(APIView):
         if 'password' in request.data:
             try:
                 validate_password(request.data['password'])
-            except Exception as password_error:
-                error_array = []
-                for item in password_error:
-                    error_array.append(item)
+            except ValidationError as password_error:
                 return JsonResponse({
                     'Status': False,
-                    'Errors': {'password': error_array}
+                    'Errors': {'password': password_error.messages}
                 })
             else:
                 request.user.set_password(request.data['password'])
@@ -241,7 +234,7 @@ class BasketView(APIView):
             state='basket'
         ).prefetch_related(
             'ordered_items__product_info__product__category',
-            'ordered_items__product_info_product_parameters__parameter'
+            'ordered_items__product_info__product_parameters__parameter'
         ).annotate(
             total_sum=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))
         ).distinct()
@@ -500,7 +493,7 @@ class OrderView(APIView):
                     })
                 else:
                     if is_updated:
-                        new_order.send(sender=self.__class__, user_id=request.user.id)
+                        new_order_signal.send(sender=self.__class__, user_id=request.user.id)
                         return JsonResponse({'Status': True})
 
         return JsonResponse({
@@ -579,6 +572,15 @@ class PartnerState(APIView):
                 'Status': False,
                 'Error': 'Только для магазинов'
             }, status=403)
+
+        def strtobool(val):
+            val = str(val).lower()
+            if val in ("y", "yes", "t", "true", "on", "1"):
+                return True
+            elif val in ("n", "no", "f", "false", "off", "0"):
+                return False
+            else:
+                raise ValueError(f"invalid truth value {val}")
 
         state = request.data.get('state')
         if state:
