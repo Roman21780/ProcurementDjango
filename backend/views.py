@@ -26,7 +26,7 @@ from backend.serializers import (
     ProductInfoSerializer, OrderItemSerializer, OrderSerializer,
     ContactSerializer, OrderStatusUpdateSerializer
 )
-from backend.signals import new_user_registered_signal, new_order_signal
+from backend.signals import new_user_registered, new_order
 from backend.tasks import send_email_task, import_shop_data_task
 
 
@@ -41,19 +41,19 @@ class RegisterAccount(APIView):
         # Проверяем обязательные поля
         required_fields = {'first_name', 'last_name', 'email', 'password', 'company', 'position'}
         if not required_fields.issubset(request.data.keys()):
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Errors': 'Не указаны все необходимые аргументы'
-            })
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Проверяем пароль на сложность
         try:
             validate_password(request.data['password'])
         except ValidationError as password_error:
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Errors': {'password': password_error.messages}
-            })
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Создаем пользователя
         user_serializer = UserSerializer(data=request.data)
@@ -61,13 +61,21 @@ class RegisterAccount(APIView):
             user = user_serializer.save()
             user.set_password(request.data['password'])
             user.save()
-            new_user_registered_signal.send(sender=self.__class__, user_id=user.id)
-            return JsonResponse({'Status': True})
+
+            # Если тип пользователя — shop, создаём магазин
+            if request.data.get('type') == 'shop':
+                Shop.objects.get_or_create(
+                    user=user,
+                    defaults={'name': request.data.get('company', user.company), 'state': True}
+                )
+
+            new_user_registered.send(sender=self.__class__, user_id=user.id)
+            return Response({'Status': True}, status=status.HTTP_201_CREATED)
         else:
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Errors': user_serializer.errors
-            })
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ConfirmAccount(APIView):
@@ -88,17 +96,17 @@ class ConfirmAccount(APIView):
                 token.user.is_active = True
                 token.user.save()
                 token.delete()
-                return JsonResponse({'Status': True})
+                return Response({'Status': True}, status=status.HTTP_200_OK)
             else:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Errors': 'Неправильно указан токен или email'
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class AccountDetails(APIView):
@@ -112,7 +120,7 @@ class AccountDetails(APIView):
         """Получить данные пользователя"""
 
         serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """Обновить данные пользователя"""
@@ -122,10 +130,10 @@ class AccountDetails(APIView):
             try:
                 validate_password(request.data['password'])
             except ValidationError as password_error:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Errors': {'password': password_error.messages}
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 request.user.set_password(request.data['password'])
 
@@ -133,12 +141,12 @@ class AccountDetails(APIView):
         user_serializer = UserSerializer(request.user, data=request.data, partial=True)
         if user_serializer.is_valid():
             user_serializer.save()
-            return JsonResponse({'Status': True})
+            return Response({'Status': True}, status=status.HTTP_200_OK)
         else:
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Errors': user_serializer.errors
-            })
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginAccount(APIView):
@@ -159,20 +167,20 @@ class LoginAccount(APIView):
             if user is not None:
                 if user.is_active:
                     token, _ = Token.objects.get_or_create(user=user)
-                    return JsonResponse({
+                    return Response({
                         'Status': True,
                         'Token': token.key
-                    })
+                    }, status=status.HTTP_200_OK)
 
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Errors': 'Не удалось авторизовать'
-            })
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CategoryView(ListAPIView):
@@ -211,13 +219,13 @@ class ProductInfoView(APIView):
 
         # Фильтруем и отбрасываем дубликаты
         queryset = ProductInfo.objects.filter(query).select_related(
-            'shop' 'product__category'
+            'shop', 'product__category'
         ).prefetch_related(
             'product_parameters__parameter'
         ).distinct()
 
         serializer = ProductInfoSerializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class BasketView(APIView):
@@ -236,11 +244,11 @@ class BasketView(APIView):
             'ordered_items__product_info__product__category',
             'ordered_items__product_info__product_parameters__parameter'
         ).annotate(
-            total_sum=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))
+            total=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))
         ).distinct()
 
         serializer = OrderSerializer(basket, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """Добавить товары в корзину"""
@@ -250,16 +258,16 @@ class BasketView(APIView):
             try:
                 items_dict = load_json(items_string)
             except ValueError:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Errors': 'Неверный формат запроса'
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 basket, _ = Order.objects.get_or_create(
                     user_id=request.user.id,
                     state='basket'
                 )
-                object_created = 0
+                objects_created = 0
 
                 for order_item in items_dict:
                     order_item.update({'order': basket.id})
@@ -269,27 +277,27 @@ class BasketView(APIView):
                         try:
                             serializer.save()
                         except IntegrityError as error:
-                            return JsonResponse({
+                            return Response({
                                 'Status': False,
                                 'Errors': str(error)
-                            })
+                            }, status=status.HTTP_400_BAD_REQUEST)
                         else:
-                            object_created += 1
+                            objects_created += 1
                     else:
-                        return JsonResponse({
+                        return Response({
                             'Status': False,
                             'Errors': serializer.errors
-                        })
+                        }, status=status.HTTP_400_BAD_REQUEST)
 
-                return JsonResponse({
+                return Response({
                     'Status': True,
-                    'Создано объектов': object_created
-                })
+                    'Создано объектов': objects_created
+                }, status=status.HTTP_201_CREATED)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
-            'Errors': 'не указаны все необходимые документы'
-        })
+            'Errors': 'Не указаны все необходимые аргументы'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, *args, **kwargs):
         """Обновить количество товаров в корзине"""
@@ -299,10 +307,10 @@ class BasketView(APIView):
             try:
                 items_dict = load_json(items_string)
             except ValueError:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Errors': 'Неверный формат запроса'
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 basket, _ = Order.objects.get_or_create(
                     user_id=request.user.id,
@@ -318,15 +326,15 @@ class BasketView(APIView):
                             id=order_item['id']
                         ).update(quantity=order_item['quantity'])
 
-                return JsonResponse({
+                return Response({
                     'Status': True,
                     'Обновлено объектов': objects_updated
-                })
+                }, status=status.HTTP_200_OK)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, *args, **kwargs):
         """Удалить товары из корзины"""
@@ -347,16 +355,16 @@ class BasketView(APIView):
                     objects_deleted = True
 
             if objects_deleted:
-                deleted_count = OrderItem.objects.filter(query).delete()
-                return JsonResponse({
+                deleted_count = OrderItem.objects.filter(query).delete()[0]
+                return Response({
                     'Status': True,
                     'Удалено объектов': deleted_count
-                })
+                }, status=status.HTTP_200_OK)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ContactView(APIView):
@@ -371,29 +379,30 @@ class ContactView(APIView):
 
         contact = Contact.objects.filter(user_id=request.user.id)
         serializer = ContactSerializer(contact, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """Создать новый контакт"""
 
         if {'city', 'street', 'phone'}.issubset(request.data.keys()):
-            request.data._mutable = True
-            request.data.update({'user': request.user.id})
-            serializer = ContactSerializer(data=request.data)
+            # Создаем изменяемую копию данных
+            data = request.data.copy()
+            data['user'] = request.user.id
+            serializer = ContactSerializer(data=data)
 
             if serializer.is_valid():
                 serializer.save()
-                return JsonResponse({'Status': True})
+                return Response({'Status': True}, status=status.HTTP_201_CREATED)
             else:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Errors': serializer.errors
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, *args, **kwargs):
         """Обновить контакт"""
@@ -412,17 +421,17 @@ class ContactView(APIView):
                     )
                     if serializer.is_valid():
                         serializer.save()
-                        return JsonResponse({'Status': True})
+                        return Response({'Status': True}, status=status.HTTP_200_OK)
                     else:
-                        return JsonResponse({
+                        return Response({
                             'Status': False,
                             'Errors': serializer.errors
-                        })
+                        }, status=status.HTTP_400_BAD_REQUEST)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, *args, **kwargs):
         """Удалить контакты"""
@@ -439,16 +448,16 @@ class ContactView(APIView):
                     objects_deleted = True
 
             if objects_deleted:
-                deleted_count = Contact.objects.filter(query).delete()
-                return JsonResponse({
+                deleted_count = Contact.objects.filter(query).delete()[0]
+                return Response({
                     'Status': True,
                     'Удалено объектов': deleted_count
-                })
+                }, status=status.HTTP_200_OK)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OrderView(APIView):
@@ -467,11 +476,11 @@ class OrderView(APIView):
             'ordered_items__product_info__product__category',
             'ordered_items__product_info__product_parameters__parameter'
         ).select_related('contact').annotate(
-            total_sum=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))
+            total=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))
         ).distinct()
 
         serializer = OrderSerializer(order, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """Создать заказ из корзины"""
@@ -487,19 +496,19 @@ class OrderView(APIView):
                         state='new'
                     )
                 except IntegrityError:
-                    return JsonResponse({
+                    return Response({
                         'Status': False,
                         'Errors': 'Неправильно указаны аргументы'
-                    })
+                    }, status=status.HTTP_400_BAD_REQUEST)
                 else:
                     if is_updated:
-                        new_order_signal.send(sender=self.__class__, user_id=request.user.id)
-                        return JsonResponse({'Status': True})
+                        new_order.send(sender=self.__class__, user_id=request.user.id, order_id=request.data['id'])
+                        return Response({'Status': True}, status=status.HTTP_201_CREATED)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Представления для поставщиков
@@ -515,10 +524,10 @@ class PartnerUpdate(APIView):
         """Обновить прайс-лист"""
 
         if request.user.type != 'shop':
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Error': 'Только для магазинов'
-            }, status=403)
+            }, status=status.HTTP_403_FORBIDDEN)
 
         url = request.data.get('url')
         if url:
@@ -526,22 +535,22 @@ class PartnerUpdate(APIView):
             try:
                 validate_url(url)
             except ValidationError as e:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Error': str(e)
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 # Запускаем асинхронную задачу импорта
                 task = import_shop_data_task.delay(url, request.user.id)
-                return JsonResponse({
+                return Response({
                     'Status': True,
                     'task_id': task.id
-                })
+                }, status=status.HTTP_202_ACCEPTED)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PartnerState(APIView):
@@ -555,23 +564,23 @@ class PartnerState(APIView):
         """Получить статус поставщика"""
 
         if request.user.type != 'shop':
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Error': 'Только для магазинов'
-            }, status=403)
+            }, status=status.HTTP_403_FORBIDDEN)
 
         shop = request.user.shop
         serializer = ShopSerializer(shop)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """Изменить статус поставщика"""
 
         if request.user.type != 'shop':
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Error': 'Только для магазинов'
-            }, status=403)
+            }, status=status.HTTP_403_FORBIDDEN)
 
         def strtobool(val):
             val = str(val).lower()
@@ -588,17 +597,17 @@ class PartnerState(APIView):
                 Shop.objects.filter(
                     user_id=request.user.id
                 ).update(state=strtobool(state))
-                return JsonResponse({'Status': True})
+                return Response({'Status': True}, status=status.HTTP_200_OK)
             except ValueError as error:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Errors': str(error)
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PartnerOrders(APIView):
@@ -612,10 +621,10 @@ class PartnerOrders(APIView):
         """Получить заказы поставщика"""
 
         if request.user.type != 'shop':
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Error': 'Только для магазинов'
-            }, status=403)
+            }, status=status.HTTP_403_FORBIDDEN)
 
         order = Order.objects.filter(
             ordered_items__product_info__shop__user_id=request.user.id
@@ -627,7 +636,7 @@ class PartnerOrders(APIView):
         ).distinct()
 
         serializer = OrderSerializer(order, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class OrderStatusUpdateView(APIView):
@@ -641,10 +650,10 @@ class OrderStatusUpdateView(APIView):
         """Обновить статус заказа"""
 
         if not request.user.is_staff:
-            return JsonResponse({
+            return Response({
                 'Status': False,
                 'Error': 'Недостаточно прав'
-            }, status=403)
+            }, status=status.HTTP_403_FORBIDDEN)
 
         order_id = request.data.get('order_id')
         new_state = request.data.get('state')
@@ -667,14 +676,14 @@ class OrderStatusUpdateView(APIView):
                     }
                 )
 
-                return JsonResponse({'Status': True})
+                return Response({'Status': True}, status=status.HTTP_200_OK)
             except Exception as e:
-                return JsonResponse({
+                return Response({
                     'Status': False,
                     'Error': str(e)
-                })
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        return JsonResponse({
+        return Response({
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
-        })
+        }, status=status.HTTP_400_BAD_REQUEST)

@@ -35,12 +35,13 @@ def new_user_registered_signal(sender: Type[User], instance: User, created: bool
         # Создаем токен подтверждения
         token, _ = ConfirmEmailToken.objects.get_or_create(user_id=instance.pk)
 
-        # Отправляем письмо асинхронно
+        # Отправляем письмо асинхронно (delay), синхронно - без delay
         send_email_task.delay(
             'registration',
             instance.email,
             {
-                'user': instance,
+                'first_name': instance.first_name,
+                'last_name': instance.last_name,
                 'token': token.key
             }
         )

@@ -22,7 +22,8 @@ class UserSerializer(serializers.ModelSerializer):
     contacts = ContactSerializer(many=True, read_only=True)
 
     class Meta:
-        fields = ('id', 'first_name', 'last_name', 'email', 'company', 'position', 'contacts')
+        model = User
+        fields = ('id', 'first_name', 'last_name', 'email', 'company', 'position', 'type', 'contacts')
         read_only_fields = ('id',)
 
 
@@ -93,12 +94,12 @@ class OrderItemCreateSerializer(OrderItemSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     """Сериализатор для заказов"""
     ordered_items = OrderItemCreateSerializer(many=True, read_only=True)
-    total_sum = serializers.IntegerField()
+    total = serializers.IntegerField()
     contact = ContactSerializer(read_only=True)
 
     class Meta:
         model = Order
-        fields = ('id', 'ordered_items', 'state', 'dt', 'total_sum', 'contact',)
+        fields = ('id', 'ordered_items', 'state', 'dt', 'total', 'contact',)
         read_only_fields = ('id',)
 
 

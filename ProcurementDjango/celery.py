@@ -1,5 +1,6 @@
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 # Устанавливаем модуль настроек Django для программы 'celery'
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ProcurementDjango.settings')
@@ -16,7 +17,7 @@ app.autodiscover_tasks()
 app.conf.beat_schedule = {
     'cleanup-old-tokens': {
         'task': 'backend.tasks.cleanup_old_tokens_task',
-        'schedule': 3600.0, # каждый час
+        'schedule': crontab(minute=0, hour='*/1'),  # каждый час в начало часа
     },
 }
 app.conf.timezone = 'Europe/Moscow'

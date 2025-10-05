@@ -1,0 +1,113 @@
+shop: ООО Магазин
+categories:
+  - id: 101
+    name: Диваны
+  - id: 102
+    name: Кровати
+  - id: 103
+    name: Столы
+  - id: 104
+    name: Стулья
+
+goods:
+  - id: 5010001
+    category: 101
+    model: ikea/klippan
+    name: Диван IKEA KLIPPAN 2-местный (бежевый)
+    price: 19990
+    price_rrc: 24990
+    quantity: 5
+    parameters:
+      "Ширина (см)": 180
+      "Глубина (см)": 88
+      "Высота (см)": 66
+      "Цвет": бежевый
+
+  - id: 5010002
+    category: 101
+    model: ikea/ektorp
+    name: Диван IKEA EKTORP 3-местный (темно-синий)
+    price: 24990
+    price_rrc: 29990
+    quantity: 3
+    parameters:
+      "Ширина (см)": 228
+      "Глубина (см)": 92
+      "Высота (см)": 88
+      "Цвет": темно-синий
+
+  - id: 5020001
+    category: 102
+    model: ikea/malm-bed
+    name: Кровать IKEA MALM двуспальная (белая)
+    price: 14990
+    price_rrc: 17990
+    quantity: 4
+    parameters:
+      "Ширина (см)": 160
+      "Длина (см)": 200
+      "Высота изголовья (см)": 100
+      "Цвет": белый
+
+  - id: 5020002
+    category: 102
+    model: ikea/hemnes-bed
+    name: Кровать IKEA HEMNES двуспальная с ящиками (серый)
+    price: 17990
+    price_rrc: 20990
+    quantity: 2
+    parameters:
+      "Ширина (см)": 160
+      "Длина (см)": 200
+      "Ящиков под кроватью": 2
+      "Цвет": серый
+
+  - id: 5030001
+    category: 103
+    model: ikea/linmon-table
+    name: Стол IKEA LINNMON/ADILS (белый)
+    price: 2990
+    price_rrc: 3490
+    quantity: 10
+    parameters:
+      "Длина (см)": 120
+      "Ширина (см)": 60
+      "Материал": Ламинат
+      "Цвет": белый
+
+  - id: 5030002
+    category: 103
+    model: ikea/ingatorp
+    name: Стол IKEA INGATORP (светло-серый)
+    price: 4990
+    price_rrc: 5990
+    quantity: 6
+    parameters:
+      "Длина (см)": 170
+      "Ширина (см)": 90
+      "Материал": Массив сосны
+      "Цвет": светло-серый
+
+  - id: 5040001
+    category: 104
+    model: ikea/ivar-chair
+    name: Стул IKEA IVAR (натуральный)
+    price: 590
+    price_rrc: 790
+    quantity: 20
+    parameters:
+      "Материал": Сосна
+      "Высота сиденья (см)": 46
+      "Цвет": натуральный
+
+  - id: 5040002
+    category: 104
+    model: ikea/poang
+    name: Кресло IKEA POÄNG (черное)
+    price: 3990
+    price_rrc: 4490
+    quantity: 8
+    parameters:
+      "Материал": Бук
+      "Высота сиденья (см)": 43
+      "Цвет": черный

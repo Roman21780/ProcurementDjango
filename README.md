@@ -115,6 +115,17 @@ pip install -r requirements.txt
 CREATE DATABASE diplom_db;
 CREATE USER diplom_user WITH PASSWORD 'password';
 GRANT ALL PRIVILEGES ON DATABASE diplom_db TO diplom_user;
+
+если нет прав
+перейдите в нужную базу
+\c diplom_db
+Назначьте права на схему
+GRANT ALL PRIVILEGES ON SCHEMA public TO diplom_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO diplom_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO diplom_user;
+права на создание таблиц
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO diplom_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO diplom_user;      
 ```
 
 4. **Настройте Redis:**
@@ -125,6 +136,8 @@ sudo systemctl start redis
 
 # или используйте Docker
 docker run -d -p 6379:6379 redis:7-alpine
+локальный запуск
+docker run -d --name redis-local -p 6379:6379 redis:7-alpine
 ```
 
 5. **Выполните миграции:**
@@ -137,6 +150,46 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
+6a. **Создание пользователя-поставщика для загрузки данных**
+```bash
+python manage.py shell
+
+from backend.models import User, Shop
+
+# Создаем пользователя-поставщика
+user = User.objects.create_user(
+    email='shop@example.com',
+    password='shoppassword123',
+    first_name='Магазин',
+    last_name='Владелец',
+    type='shop',
+    is_active=True
+)
+
+# Создаем магазин
+shop = Shop.objects.create(
+    name='Связной',
+    user=user,
+    state=True
+)
+
+print(f"Создан пользователь ID: {user.id}")
+print(f"Создан магазин ID: {shop.id}")
+exit()
+```
+
+6b**Создание management команды для загрузки YAML**
+```bash
+Создайте файл backend/management/__init__.py (пустой)
+Создайте файл backend/management/commands/__init__.py (пустой)
+Создайте файл backend/management/commands/load_yaml_data.py
+```
+
+6c**Загрузка данных из YAML**
+```bash
+python manage.py load_yaml_data "C:\Python\Diplom\ProcurementDjango\data\shop1.yaml"
+```
+
 7. **Запустите сервер разработки:**
 ```bash
 python manage.py runserver
@@ -145,10 +198,10 @@ python manage.py runserver
 8. **В отдельных терминалах запустите Celery:**
 ```bash
 # Worker
-celery -A diplom_project worker --loglevel=info
+celery -A ProcurementDjango worker --loglevel=info
 
 # Beat scheduler
-celery -A diplom_project beat --loglevel=info
+celery -A ProcurementDjango beat --loglevel=info
 ```
 
 ## API Endpoints
@@ -308,3 +361,16 @@ ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 ## Лицензия
 
 Этот проект создан в образовательных целях.
+
+
+Осталось реализовать:
+
+скорректировать шаблон письма 
+templates/emails/registration_confirmation.html, 
+чтобы он использовал first_name и last_name вместо объекта user.
+
+админка
+
+докер
+
+фронт
