@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'debug_toolbar',
 
     # REST Framework
     'rest_framework',
@@ -61,6 +62,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -235,3 +237,7 @@ LOGGING = {
 
 # Создаем директорию для логов
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+
+INTERNAL_IPS = [
+    '127.0.0.1',
+]
