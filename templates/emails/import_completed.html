@@ -1,0 +1,19 @@
+{% extends 'emails/base_email.html' %}
+
+{% block content %}
+<h2>Импорт товаров завершен</h2>
+<p>Здравствуйте!</p>
+
+<p>Импорт товаров для магазина "{{ shop_name }}" успешно завершен.</p>
+
+<div class="order-details">
+    <h3>Результаты импорта:</h3>
+    <p><strong>Загружено товаров:</strong> {{ products_count }}</p>
+    <p><strong>Загружено категорий:</strong> {{ categories_count }}</p>
+</div>
+
+<p>Все товары теперь доступны в каталоге.</p>
+
+<p>С уважением,<br>
+Система автоматизации закупок</p>
+{% endblock %}

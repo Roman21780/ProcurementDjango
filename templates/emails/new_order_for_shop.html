@@ -1,0 +1,37 @@
+{% extends 'emails/base_email.html' %}
+
+{% block content %}
+<h2>Новый заказ для вашего магазина</h2>
+<p>Здравствуйте!</p>
+
+<p>В магазин "{{ shop.name }}" поступил новый заказ.</p>
+
+<div class="order-details">
+    <h3>Детали заказа:</h3>
+    <p><strong>Номер заказа:</strong> #{{ order_id }}</p>
+    <p><strong>Дата заказа:</strong> {{ order.dt|date:"d.m.Y H:i" }}</p>
+    <p><strong>Клиент:</strong> {{ order.user.first_name }} {{ order.user.last_name }}</p>
+    
+    {% if order.contact %}
+    <h4>Контактные данные:</h4>
+    <p><strong>Телефон:</strong> {{ order.contact.phone }}</p>
+    <p><strong>Адрес:</strong> {{ order.contact.city }}, {{ order.contact.street }}, 
+       дом {{ order.contact.house }}
+       {% if order.contact.apartment %}, кв. {{ order.contact.apartment }}{% endif %}</p>
+    {% endif %}
+</div>
+
+<div class="order-details">
+    <h4>Заказанные товары из вашего магазина:</h4>
+    {% for item in order.ordered_items.all %}
+        {% if item.product_info.shop == shop %}
+        <p>{{ item.product_info.product.name }} - {{ item.quantity }} шт. x {{ item.product_info.price }} руб.</p>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<p>Пожалуйста, подготовьте товары к отправке.</p>
+
+<p>С уважением,<br>
+Система автоматизации закупок</p>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'emails/base_email.html' %}
+
+{% block content %}
+<h2>Подтверждение заказа</h2>
+<p>Здравствуйте, {{ order.user.first_name }} {{ order.user.last_name }}!</p>
+
+<p>Ваш заказ успешно оформлен и принят в обработку.</p>
+
+<div class="order-details">
+    <h3>Детали заказа:</h3>
+    <p><strong>Номер заказа:</strong> #{{ order_id }}</p>
+    <p><strong>Дата заказа:</strong> {{ order.dt|date:"d.m.Y H:i" }}</p>
+    <p><strong>Статус:</strong> {{ order.get_state_display }}</p>
+    <p><strong>Общая сумма:</strong> {{ total_sum }} руб.</p>
+    
+    {% if order.contact %}
+    <h4>Адрес доставки:</h4>
+    <p>{{ order.contact.city }}, {{ order.contact.street }}, 
+       дом {{ order.contact.house }}
+       {% if order.contact.apartment %}, кв. {{ order.contact.apartment }}{% endif %}</p>
+    <p><strong>Телефон:</strong> {{ order.contact.phone }}</p>
+    {% endif %}
+</div>
+
+<div class="order-details">
+    <h4>Заказанные товары:</h4>
+    {% for item in order.ordered_items.all %}
+    <p>{{ item.product_info.product.name }} - {{ item.quantity }} шт. x {{ item.product_info.price }} руб. = {{ item.total_amount }} руб.</p>
+    {% endfor %}
+</div>
+
+<p>Мы уведомим вас о всех изменениях статуса заказа.</p>
+
+<p>Спасибо за покупку!</p>
+{% endblock %}

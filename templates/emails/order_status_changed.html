@@ -1,0 +1,38 @@
+{% extends 'emails/base_email.html' %}
+
+{% block content %}
+<h2>Изменение статуса заказа</h2>
+<p>Здравствуйте!</p>
+
+<p>Статус вашего заказа изменился.</p>
+
+<div class="order-details">
+    <h3>Информация о заказе:</h3>
+    <p><strong>Номер заказа:</strong> #{{ order_id }}</p>
+    <p><strong>Новый статус:</strong> 
+        <span style="color: #28a745; font-weight: bold;">
+            {% if new_state == 'confirmed' %}Подтвержден
+            {% elif new_state == 'assembled' %}Собран
+            {% elif new_state == 'sent' %}Отправлен
+            {% elif new_state == 'delivered' %}Доставлен
+            {% elif new_state == 'canceled' %}Отменен
+            {% else %}{{ new_state }}{% endif %}
+        </span>
+    </p>
+</div>
+
+{% if new_state == 'confirmed' %}
+<p>Ваш заказ подтвержден и передан в обработку.</p>
+{% elif new_state == 'assembled' %}
+<p>Ваш заказ собран и готов к отправке.</p>
+{% elif new_state == 'sent' %}
+<p>Ваш заказ отправлен. В ближайшее время с вами свяжется курьер.</p>
+{% elif new_state == 'delivered' %}
+<p>Ваш заказ успешно доставлен. Спасибо за покупку!</p>
+{% elif new_state == 'canceled' %}
+<p>Ваш заказ был отменен. Если у вас есть вопросы, обращайтесь в службу поддержки.</p>
+{% endif %}
+
+<p>С уважением,<br>
+Команда поддержки</p>
+{% endblock %}

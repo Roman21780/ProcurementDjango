@@ -361,16 +361,3 @@ ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 ## Лицензия
 
 Этот проект создан в образовательных целях.
-
-
-Осталось реализовать:
-
-скорректировать шаблон письма 
-templates/emails/registration_confirmation.html, 
-чтобы он использовал first_name и last_name вместо объекта user.
-
-админка
-
-докер
-
-фронт
