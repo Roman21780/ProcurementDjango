@@ -1,0 +1,50 @@
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Docker
+.dockerignore
+
+# Environment variables
+.env.local
+.env.production.local
+
+# Static files (will be collected in container)
+staticfiles/
+
+# Logs
+logs/
+*.log
+
+# Media files (will be handled in container)
+media/
+
+# Temporary files
+*.tmp
+*.temp

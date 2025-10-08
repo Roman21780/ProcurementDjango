@@ -50,7 +50,7 @@ celerybeat-schedule
 celerybeat.pid
 
 # Environment variables
-.env
+.env.production
 .env.*
 
 # Mac OS

@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  # База данных PostgreSQL
+  db:
+    image: postgres:15
+    container_name: procurement_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-diplom_db}
+      POSTGRES_USER: ${DB_USER:-diplom_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - procurement_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-diplom_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis для Celery
+  redis:
+    image: redis:7-alpine
+    container_name: procurement_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - procurement_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django приложение
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement_web
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - logs_volume:/app/logs
+      - ./data:/app/data:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - procurement_network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python manage.py migrate &&
+        echo 'Collecting static files...' &&
+        python manage.py collectstatic --noinput &&
+        echo 'Starting Gunicorn...' &&
+        gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 60 ProcurementDjango.wsgi:application
+      "
+    restart: unless-stopped
+
+  # Celery Worker
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement_celery
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - logs_volume:/app/logs
+      - ./data:/app/data:ro
+    networks:
+      - procurement_network
+    command: celery -A ProcurementDjango worker --loglevel=info
+    restart: unless-stopped
+
+  # Celery Beat (планировщик задач)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement_celery_beat
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - logs_volume:/app/logs
+      - ./data:/app/data:ro
+    networks:
+      - procurement_network
+    command: celery -A ProcurementDjango beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    restart: unless-stopped
+
+  # Nginx для статических файлов
+  nginx:
+    image: nginx:alpine
+    container_name: procurement_nginx
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+    networks:
+      - procurement_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+  logs_volume:
+
+networks:
+  procurement_network:
+    driver: bridge
