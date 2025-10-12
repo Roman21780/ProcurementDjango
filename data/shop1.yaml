@@ -1,4 +1,5 @@
 shop: Связной
+shop_email: shop@example.com
 categories:
   - id: 224
     name: Смартфоны

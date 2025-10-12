@@ -614,28 +614,37 @@ class PartnerOrders(APIView):
     """
     Заказы поставщика
     """
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        """Получить заказы поставщика"""
-
         if request.user.type != 'shop':
-            return Response({
-                'Status': False,
-                'Error': 'Только для магазинов'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response({'Status': False,'Error': 'Только для магазинов'},
+                            status=status.HTTP_403_FORBIDDEN)
 
-        order = Order.objects.filter(
-            ordered_items__product_info__shop__user_id=request.user.id
-        ).exclude(state='basket').prefetch_related(
-            'ordered_items__product_info__product__category',
-            'ordered_items__product_info__product_parameters__parameter'
-        ).select_related('contact').annotate(
-            total_sum=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))
-        ).distinct()
+        try:
+            shop = request.user.shop
+        except Shop.DoesNotExist:
+            return Response({'Status': False,'Error': 'Магазин не найден'},
+                            status=status.HTTP_404_NOT_FOUND)
 
-        serializer = OrderSerializer(order, many=True)
+        orders = (Order.objects
+            .filter(ordered_items__product_info__shop=shop)
+            .exclude(state='basket')
+            .prefetch_related(
+                'ordered_items__product_info__product__category',
+                'ordered_items__product_info__product_parameters__parameter'
+            )
+            .select_related('contact')
+            .annotate(
+                total_sum=Sum(
+                    F('ordered_items__quantity') *
+                    F('ordered_items__product_info__price')
+                )
+            )
+            .distinct()
+        )
+
+        serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
