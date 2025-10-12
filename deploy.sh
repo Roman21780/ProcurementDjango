@@ -82,6 +82,9 @@ done
 echo "🔄 Выполняем миграции..."
 docker compose exec web python manage.py migrate
 
+echo "⏳ Ждём стабилизации после миграций..."
+sleep 10
+
 # Сбор статических файлов
 echo "📦 Собираем статические файлы..."
 docker compose exec web python manage.py collectstatic --noinput

@@ -15,10 +15,10 @@ def api_root(request):
         'endpoints': {
             'admin': '/admin/',
             'api': '/api/v1/',
-            'user_register': '/api/v1/user/register',
-            'user_login': '/api/v1/user/login',
-            'products': '/api/v1/products',
-            'categories': '/api/v1/categories',
+            'user_register': '/api/v1/user/register/',
+            'user_login': '/api/v1/user/login/',
+            'products': '/api/v1/products/',
+            'categories': '/api/v1/categories/',
         }
     })
 

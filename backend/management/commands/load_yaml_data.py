@@ -30,7 +30,7 @@ class Command(BaseCommand):
         with open(file_path, 'r', encoding='utf-8') as f:
             data = load_yaml(f.read(), Loader=Loader)
 
-        shop_email = data.get('shop_email', 'shop@example.com')
+        shop_email = data.get('shop_email', 'shop2@example.com')
         shop_name = data.get('shop', 'Unnamed Shop')
 
         try:

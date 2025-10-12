@@ -94,12 +94,14 @@ class OrderItemCreateSerializer(OrderItemSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     """Сериализатор для заказов"""
     ordered_items = OrderItemCreateSerializer(many=True, read_only=True)
-    total = serializers.IntegerField()
+    calculated_total = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
     contact = ContactSerializer(read_only=True)
 
     class Meta:
         model = Order
-        fields = ('id', 'ordered_items', 'state', 'dt', 'total', 'contact',)
+        fields = ('id', 'ordered_items', 'state', 'dt', 'calculated_total', 'contact',)
         read_only_fields = ('id',)
 
 
