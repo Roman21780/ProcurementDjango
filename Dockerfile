@@ -10,9 +10,6 @@ RUN apt-get update \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Создаём пользователя для приложения
-RUN useradd --create-home --shell /bin/bash app
-
 # Создаём рабочую директорию
 WORKDIR /app
 
@@ -25,12 +22,6 @@ COPY . .
 
 # Создаём необходимые директории
 RUN mkdir -p /app/staticfiles /app/media /app/logs /app/data
-
-# Устанавливаем права на директории
-RUN chown -R app:app /app
-
-# Переключаемся на пользователя app
-USER app
 
 # Открываем порт 8000
 EXPOSE 8000

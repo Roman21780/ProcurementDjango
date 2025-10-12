@@ -18,7 +18,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me-in-production')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Исправлена обработка ALLOWED_HOSTS с обрезкой пробелов
+ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,10.0.2.15').split(',')]
 
 # Application definition
 INSTALLED_APPS = [
@@ -93,6 +94,9 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
         'HOST': os.getenv('DB_HOST', 'db'),
         'PORT': os.getenv('DB_PORT', '5432'),
+        'OPTIONS': {
+            'connect_timeout': 20,
+        },
     }
 }
 
@@ -161,12 +165,14 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-# CORS settings
+# CORS settings - расширены для поддержки VM IP
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://10.0.2.15:8000",
+    "http://10.0.2.15",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -190,12 +196,23 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
+    SECURE_SSL_REDIRECT = False  # True если используете HTTPS
+    SESSION_COOKIE_SECURE = False  # True если используете HTTPS
+    CSRF_COOKIE_SECURE = False  # True если используете HTTPS
 
-# Debug toolbar settings (только для разработки)
+# Debug toolbar settings - улучшена поддержка Docker
 if DEBUG:
-    INTERNAL_IPS = [
-        '127.0.0.1',
-    ]
+    try:
+        import socket
+        hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+        INTERNAL_IPS = [
+            '127.0.0.1',
+            '10.0.2.15',
+        ]
+        # Для Docker контейнеров
+        INTERNAL_IPS += [ip[:-1] + '1' for ip in ips]
+    except:
+        INTERNAL_IPS = ['127.0.0.1', '10.0.2.15']
 
 # Logging
 LOGGING = {
@@ -239,8 +256,16 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'celery': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
-# Создаем директорию для логов
-os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+# Создаем директорию для логов с обработкой ошибок
+try:
+    os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+except OSError as e:
+    print(f"Warning: Could not create logs directory: {e}")

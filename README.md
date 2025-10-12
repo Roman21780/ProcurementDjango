@@ -1,6 +1,7 @@
 # Backend-приложение для автоматизации закупок
 
 Система управления заказами для розничных сетей на Django REST Framework с возможностью импорта товаров, управления заказами и асинхронной обработкой задач.
+(Django с Celery, Docker и PostgreSQL)
 
 ## Возможности
 
@@ -23,12 +24,14 @@
 
 ## Технический стек
 
-- **Backend**: Django 4.2, Django REST Framework
+- **Backend**: Django 5.2, Django REST Framework
 - **База данных**: PostgreSQL 15
 - **Кэш/Брокер**: Redis 7
 - **Асинхронные задачи**: Celery
 - **Контейнеризация**: Docker, Docker Compose
 - **Дополнительно**: CORS, Email отправка, YAML импорт/экспорт
+- **Nginx**: веб-сервер
+- **Gunicorn**: WSGI сервер
 
 ## Структура проекта
 
@@ -295,6 +298,18 @@ goods:
 5. **Мониторинг задач** - Celery задачи и результаты
 
 ## Мониторинг и логи
+Docker сервисы
+web - Django приложение (порт 8000)
+
+db - PostgreSQL база данных (порт 5432)
+
+redis - Redis для Celery (порт 6379)
+
+celery - Celery worker для асинхронных задач
+
+celery-beat - Celery планировщик
+
+nginx - веб-сервер для статики (порт 80)
 
 ### Логи приложения:
 ```bash
@@ -307,11 +322,25 @@ tail -f logs/django.log
 
 ### Мониторинг Celery:
 ```bash
+docker compose logs celery
 # Flower (опционально)
 pip install flower
 celery -A diplom_project flower
 # http://localhost:5555
 ```
+
+# Django команды
+docker compose exec web python manage.py shell
+docker compose exec web python manage.py createsuperuser
+
+# Загрузка тестовых данных
+docker compose exec web python manage.py load_yaml_data /app/data/shop1.yaml
+
+# Очистка тестовых данных
+docker compose exec web python manage.py clear_test_data
+
+# Перезапуск сервисов
+docker compose restart web celery
 
 ## Тестирование
 
@@ -361,3 +390,307 @@ ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 ## Лицензия
 
 Этот проект создан в образовательных целях.
+
+#######################################################################
+# Развертывание проекта на Linux:
+
+логин VM: roman
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget git vim nano htop tree
+
+Установка SSH сервера (если не установлен)
+sudo apt install -y openssh-server
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+Проверка IP адреса
+ip addr show
+
+ssh-keygen  # для генерации ключа
+нужно настроить проброс портов в VB: сеть: хост 2222, гость 22
+ssh -p 2222 roman@localhost
+скопировать ключ:
+cat ~/.ssh/id_ed25519.pub
+добавить ключ сюда:
+nano ~/.ssh/authorized_keys
+
+
+--------------------------------------------------------------------
+Установка Docker на Linux
+# Удаляем старые версии Docker (если есть)
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do
+    sudo apt-get remove $pkg
+done
+
+# Обновляем пакеты
+sudo apt-get update
+
+# Устанавливаем необходимые пакеты
+sudo apt-get install -y ca-certificates curl gnupg lsb-release
+
+# Добавляем официальный GPG ключ Docker
+sudo mkdir -m 0755 -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Добавляем Docker репозиторий
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Обновляем пакеты и устанавливаем Docker
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Добавляем пользователя в группу docker
+sudo usermod -aG docker $USER
+
+# Включаем автозапуск Docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Проверяем установку
+docker --version
+docker compose version
+
+Проверка Docker (после перезагрузки)
+# Перезагружаемся для применения групп
+sudo reboot
+
+# После перезагрузки проверяем Docker
+docker run hello-world
+--------------------------------------------------------------------
+
+Клонирование репозитория
+Переходим в домашнюю директорию
+cd ~
+
+git clone git@github.com:Roman21780/ProcurementDjango.git
+cd ProcurementDjango
+
+Проверяем структуру файлов
+tree -L 2
+
+git checkout dj_linux
+git pull origin dj_linux
+
+sudo apt install python3 python3-pip python3-venv -y
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+
+Устанавливаем библиотеку gunicorn
+nginx: устанавливается и запускается через докер-контейнер
+если вручную, то выйти из виртуального окружения и выполнить:
+sudo apt update
+sudo apt install nginx -y
+команды:
+sudo systemctl start nginx
+sudo systemctl enable nginx
+sudo systemctl status nginx
+sudo systemctl restart nginx
+
+
+Создаем файл .env.production
+nano .env.production  # отредактировать настройки
+# В файле измените:
+# - SECRET_KEY на случайную строку длиной 50+ символов
+# - DB_PASSWORD на безопасный пароль базы данных
+# - EMAIL_HOST_USER и EMAIL_HOST_PASSWORD на ваши данные
+# - При необходимости измените другие параметры
+
+Проверяем настройки settings.py
+ALLOWED_HOSTS = ['*'] либо конкретный IP
+
+Создание директорий и установка прав
+
+## Устанавливаем права на выполнение скриптов
+chmod +x deploy.sh
+
+## Проверяем структуру проекта
+ls -la
+
+## Запустить автоматическое развёртывание
+./deploy.sh
+
+#################################################
+
+## или развернуть вручную
+python manage.py migrate
+
+python manage.py createsuperuser
+
+Собрать статические файлы:
+python manage.py collectstatic --noinput
+
+Запуск Redis 
+sudo systemctl restart redis
+
+Запуск Celery worker
+celery -A ProcurementDjango worker --loglevel=info
+
+Запуск Django
+gunicorn --bind 0.0.0.0:8000 ProcurementDjango.wsgi:application
+
+#################################################
+
+Создайте конфигурационный файл /etc/nginx/sites-available/procurement:
+server {
+    listen 80;
+    server_name your_server_ip_or_domain;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;  # gunicorn работает на localhost
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /static/ {
+        alias /path/to/your/staticfiles/;
+    }
+}
+
+Создайте символическую ссылку и активируйте сайт:
+sudo ln -s /etc/nginx/sites-available/procurement /etc/nginx/sites-enabled/
+
+Перезагрузите nginx:
+sudo systemctl restart nginx
+
+Настройка автоматического запуска
+Создайте systemd-сервис для Gunicorn и запустите его, чтобы он автоматически стартовал при перезагрузке.
+Запустите Celery worker также через systemd или screen/tmux.
+Настройте бэкап базы данных, логирование и мониторинг.
+
+После выполненных настроек проект будет доступен по адресу http://your_server_ip.
+Можно установить SSL (например, с помощью Certbot) для безопасного соединения.
+В режиме DEBUG=False — отключается debug toolbar и включается полноценная безопасность.
+
+## Мониторинг процесса развёртывания
+## Следим за логами в реальном времени (в отдельном терминале)
+## Подключаемся по SSH с Windows:
+ssh -p 2222 user@localhost
+
+## Или открываем новую сессию в VirtualBox
+## Переходим в папку проекта
+cd ~/ProcurementDjango
+
+## Следим за логами
+docker compose logs -f web
+## или
+docker compose logs -f celery
+
+## Проверка статуса сервисов
+## Проверяем запущенные контейнеры
+docker compose ps
+
+## Проверяем логи всех сервисов
+docker compose logs --tail=50
+
+## Проверяем состояние Docker системы
+docker system df
+docker stats --no-stream
+
+## Проверка через curl на Linux
+## Проверяем корневую страницу API
+curl http://localhost:8000/
+
+## Проверяем API endpoints
+curl http://localhost:8000/api/v1/
+curl http://localhost:8000/api/v1/products
+curl http://localhost:8000/api/v1/categories
+
+## Проверяем админку
+curl -I http://localhost:8000/admin/
+
+## Проверка с Windows (через проброс портов)
+## В браузере на Windows откройте:
+http://localhost:8000/          # Главная страница API
+http://localhost:8000/admin/    # Админка Django
+http://localhost:8000/api/v1/   # API root
+
+## Загрузка тестовых данных
+## Загружаем данные из YAML файлов
+docker compose exec web python manage.py load_yaml_data /app/data/shop1.yaml
+docker compose exec web python manage.py load_yaml_data /app/data/shop2.yaml
+
+## Проверяем загруженные данные
+docker compose exec web python manage.py shell -c "
+from backend.models import Product, Shop, Category;
+print(f'Товаров: {Product.objects.count()}');
+print(f'Магазинов: {Shop.objects.count()}');
+print(f'Категорий: {Category.objects.count()}')
+"
+
+## Полезные команды для отладки
+## Вход в Django shell
+docker compose exec web python manage.py shell
+
+## Просмотр логов отдельных сервисов
+docker compose logs web          # Django
+docker compose logs celery       # Celery Worker
+docker compose logs celery-beat  # Celery Scheduler
+docker compose logs db           # PostgreSQL
+docker compose logs redis        # Redis
+
+## Перезапуск отдельных сервисов
+docker compose restart web
+docker compose restart celery
+
+## Остановка и полный перезапуск
+docker compose down
+docker compose up -d
+
+## Очистка Docker системы (осторожно!)
+docker system prune -a --volumes
+
+## Резервное копирование
+## Создание бэкапа базы данных
+docker compose exec db pg_dump -U diplom_user diplom_db > backup_$(date +%Y%m%d_%H%M%S).sql
+
+## Создание архива проекта
+tar -czf procurement_backup_$(date +%Y%m%d_%H%M%S).tar.gz ~/ProcurementDjango
+
+## Мониторинг и обслуживание
+## Использование ресурсов контейнерами
+docker stats
+
+## Дисковое пространство Docker
+docker system df
+
+## Логи системы
+journalctl -u docker -f
+
+## Обновление проекта
+## Обновление кода из Git
+cd ~/ProcurementDjango
+git pull origin main
+
+## Пересборка и перезапуск
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+
+## Выполнение миграций после обновления
+docker compose exec web python manage.py migrate
+
+
+## Автор
+- Roman (@RomnSpunov - Telegram)
+
+
+
+
+
+
+
+
+
+
+
+
+

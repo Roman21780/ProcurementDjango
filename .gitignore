@@ -4,7 +4,6 @@ __pycache__/
 *.pyo
 *.pyd
 *.env
-*.env.*
 *.venv/
 venv/
 ENV/
@@ -50,8 +49,8 @@ celerybeat-schedule
 celerybeat.pid
 
 # Environment variables
+.env
 .env.production
-.env.*
 
 # Mac OS
 .DS_Store
