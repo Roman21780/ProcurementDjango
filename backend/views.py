@@ -28,13 +28,66 @@ from backend.serializers import (
 )
 from backend.signals import new_user_registered, new_order
 from backend.tasks import send_email_task, import_shop_data_task
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 
 class RegisterAccount(APIView):
     """
     Регистрация новых пользователей
+    Создание нового аккаунта покупателя или поставщика.
+    После регистрации магазина автоматически создается объект Shop.
     """
 
+    @extend_schema(
+        summary="Регистрация пользователя",
+        description="""
+            Регистрирует нового пользователя в системе.
+
+            **Типы пользователей:**
+            - `buyer` - покупатель (по умолчанию)
+            - `shop` - поставщик (автоматически создается магазин)
+
+            После успешной регистрации на email отправляется письмо с подтверждением.
+            """,
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'first_name': {'type': 'string', 'example': 'Иван'},
+                    'last_name': {'type': 'string', 'example': 'Петров'},
+                    'email': {'type': 'string', 'format': 'email', 'example': 'ivan@example.com'},
+                    'password': {'type': 'string', 'format': 'password', 'example': 'SecurePass123!'},
+                    'company': {'type': 'string', 'example': 'ООО Рога и Копыта'},
+                    'position': {'type': 'string', 'example': 'Менеджер'},
+                    'type': {'type': 'string', 'enum': ['buyer', 'shop'], 'default': 'buyer'}
+                },
+                'required': ['first_name', 'last_name', 'email', 'password', 'company', 'position']
+            }
+        },
+        responses={
+            201: {
+                'description': 'Пользователь успешно создан',
+                'content': {
+                    'application/json': {
+                        'example': {'Status': True}
+                    }
+                }
+            },
+            400: {
+                'description': 'Ошибка валидации данных',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'Status': False,
+                            'Errors': 'Не указаны все необходимые аргументы'
+                        }
+                    }
+                }
+            }
+        },
+        tags=['Пользователи']
+    )
     def post(self, request, *args, **kwargs):
         """Регистрация нового пользователя"""
 
@@ -154,6 +207,41 @@ class LoginAccount(APIView):
     Авторизация пользователей
     """
 
+    @extend_schema(
+        summary="Авторизация",
+        description="Авторизация пользователя по email и паролю. Возвращает токен для API.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'email': {'type': 'string', 'format': 'email'},
+                    'password': {'type': 'string', 'format': 'password'}
+                },
+                'required': ['email', 'password'],
+                'example': {
+                    'email': 'user@example.com',
+                    'password': 'mypassword123'
+                }
+            }
+        },
+        responses={
+            200: {
+                'description': 'Успешная авторизация',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'Status': True,
+                            'Token': 'a1b2c3d4e5f6g7h8i9j0'
+                        }
+                    }
+                }
+            },
+            401: {
+                'description': 'Неверные учетные данные'
+            }
+        },
+        tags=['Пользователи']
+    )
     def post(self, request, *args, **kwargs):
         """Авторизация пользователя"""
 
@@ -186,9 +274,19 @@ class LoginAccount(APIView):
 class CategoryView(ListAPIView):
     """
     Просмотр категорий товаров
+    Возвращает список всех доступных категорий товаров.
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
+    @extend_schema(
+        summary="Список категорий",
+        description="Получить все категории товаров",
+        responses={200: CategorySerializer(many=True)},
+        tags=['Каталог']
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
 
 class ShopView(ListAPIView):
@@ -204,6 +302,34 @@ class ProductInfoView(APIView):
     Поиск товаров с фильтрацией
     """
 
+    @extend_schema(
+        summary="Список товаров",
+        description="""
+            Получить список товаров с возможностью фильтрации.
+
+            **Параметры фильтрации:**
+            - `shop_id` - ID магазина
+            - `category_id` - ID категории
+            """,
+        parameters=[
+            OpenApiParameter(
+                name='shop_id',
+                type=OpenApiTypes.INT,
+                location='query',
+                description='ID магазина для фильтрации',
+                required=False
+            ),
+            OpenApiParameter(
+                name='category_id',
+                type=OpenApiTypes.INT,
+                location='query',
+                description='ID категории для фильтрации',
+                required=False
+            ),
+        ],
+        responses={200: ProductInfoSerializer(many=True)},
+        tags=['Каталог']
+    )
     def get(self, request, *args, **kwargs):
         """Получить список товаров с фильтрацией"""
 
@@ -234,6 +360,12 @@ class BasketView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Получить корзину",
+        description="Возвращает текущее содержимое корзины пользователя",
+        responses={200: OrderSerializer(many=True)},
+        tags=['Корзина и заказы']
+    )
     def get(self, request, *args, **kwargs):
         """Получить содержимое корзины"""
 
@@ -250,6 +382,45 @@ class BasketView(APIView):
         serializer = OrderSerializer(basket, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="Добавить товары в корзину",
+        description="""
+            Добавить один или несколько товаров в корзину.
+
+            Формат данных:
+            ```
+            {
+                "items": "[{\"product_info\": 1, \"quantity\": 2}]"
+            }
+            ```
+            """,
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'items': {
+                        'type': 'string',
+                        'description': 'JSON-строка с массивом товаров',
+                        'example': '[{"product_info": 1, "quantity": 2}]'
+                    }
+                }
+            }
+        },
+        responses={
+            201: {
+                'description': 'Товары добавлены',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'Status': True,
+                            'Создано объектов': 1
+                        }
+                    }
+                }
+            }
+        },
+        tags=['Корзина и заказы']
+    )
     def post(self, request, *args, **kwargs):
         """Добавить товары в корзину"""
 
@@ -299,6 +470,22 @@ class BasketView(APIView):
             'Errors': 'Не указаны все необходимые аргументы'
         }, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        summary="Обновить количество",
+        description="Изменить количество товаров в корзине",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'items': {
+                        'type': 'string',
+                        'example': '[{"id": 1, "quantity": 5}]'
+                    }
+                }
+            }
+        },
+        tags=['Корзина и заказы']
+    )
     def put(self, request, *args, **kwargs):
         """Обновить количество товаров в корзине"""
 
@@ -336,6 +523,22 @@ class BasketView(APIView):
             'Errors': 'Не указаны все необходимые аргументы'
         }, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        summary="Удалить товары",
+        description="Удалить товары из корзины",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'items': {
+                        'type': 'string',
+                        'example': '1,2,3'
+                    }
+                }
+            }
+        },
+        tags=['Корзина и заказы']
+    )
     def delete(self, request, *args, **kwargs):
         """Удалить товары из корзины"""
 
@@ -374,6 +577,12 @@ class ContactView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Список контактов",
+        description="Получить список контактов пользователя",
+        responses={200: ContactSerializer(many=True)},
+        tags=['Контакты']
+    )
     def get(self, request, *args, **kwargs):
         """Получить контакты пользователя"""
 
@@ -381,6 +590,13 @@ class ContactView(APIView):
         serializer = ContactSerializer(contact, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="Создать контакт",
+        description="Добавить новый адрес доставки",
+        request=ContactSerializer,
+        responses={201: {'Status': True}},
+        tags=['Контакты']
+    )
     def post(self, request, *args, **kwargs):
         """Создать новый контакт"""
 
@@ -520,6 +736,57 @@ class PartnerUpdate(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Загрузить прайс-лист",
+        description="""
+            Загружает товары из YAML-файла по URL.
+
+            Формат YAML:
+            ```
+            shop: Название магазина
+            categories:
+              - id: 1
+                name: Категория
+            goods:
+              - id: 1
+                category: 1
+                model: Модель
+                name: Название
+                price: 1000
+                price_rrc: 1200
+                quantity: 10
+                parameters:
+                  Параметр: Значение
+            ```
+            """,
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'url': {
+                        'type': 'string',
+                        'format': 'uri',
+                        'example': 'https://example.com/price.yaml'
+                    }
+                },
+                'required': ['url']
+            }
+        },
+        responses={
+            202: {
+                'description': 'Задача принята в обработку',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'Status': True,
+                            'task_id': 'abc123'
+                        }
+                    }
+                }
+            }
+        },
+        tags=['Поставщик']
+    )
     def post(self, request, *args, **kwargs):
         """Обновить прайс-лист"""
 
@@ -560,6 +827,12 @@ class PartnerState(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Получить статус магазина",
+        description="Возвращает текущий статус (включен/выключен) магазина поставщика",
+        responses={200: ShopSerializer},
+        tags=['Поставщик']
+    )
     def get(self, request, *args, **kwargs):
         """Получить статус поставщика"""
 
@@ -573,6 +846,28 @@ class PartnerState(APIView):
         serializer = ShopSerializer(shop)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="Изменить статус магазина",
+        description="""
+            Включить или выключить магазин.
+
+            Принимает строковое значение: "true", "false", "1", "0", "yes", "no"
+            """,
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'state': {
+                        'type': 'string',
+                        'enum': ['true', 'false', '1', '0', 'yes', 'no'],
+                        'example': 'true'
+                    }
+                }
+            }
+        },
+        responses={200: {'Status': True}},
+        tags=['Поставщик']
+    )
     def post(self, request, *args, **kwargs):
         """Изменить статус поставщика"""
 
@@ -617,6 +912,12 @@ class PartnerOrders(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Заказы с товарами магазина",
+        description="Возвращает все заказы покупателей, содержащие товары данного магазина",
+        responses={200: OrderSerializer(many=True)},
+        tags=['Поставщик']
+    )
     def get(self, request, *args, **kwargs):
         """Получить заказы поставщика"""
 

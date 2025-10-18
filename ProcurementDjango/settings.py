@@ -44,6 +44,9 @@ INSTALLED_APPS = [
 
     # Local apps
     'backend',
+
+    # spectacular
+    'drf_spectacular',
 ]
 
 # Условно добавляем debug_toolbar только в режиме разработки
@@ -136,6 +139,7 @@ AUTH_USER_MODEL = 'backend.User'
 
 # REST Framework settings
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 40,
     'DEFAULT_RENDERER_CLASSES': [
@@ -146,6 +150,9 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle'
@@ -154,6 +161,42 @@ REST_FRAMEWORK = {
         'anon': '1000/day',
         'user': '10000/day'
     }
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Procurement API',
+    'DESCRIPTION': 'API для платформы заказа товаров для розничных сетей',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+
+    # Настройки безопасности
+    'SECURITY': [
+        {
+            'tokenAuth': []
+        }
+    ],
+    'COMPONENT_SPLIT_REQUEST': True,
+
+    # Схемы аутентификации
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'tokenAuth': {
+                'type': 'apiKey',
+                'in': 'header',
+                'name': 'Authorization',
+                'description': 'Token-based authentication. Format: Token <your-token>'
+            }
+        }
+    },
+
+    # Дополнительные настройки
+    'SCHEMA_PATH_PREFIX': r'/api/v1',
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+    'SWAGGER_UI_FAVICON_HREF': '/static/favicon.ico',
 }
 
 # Email settings
