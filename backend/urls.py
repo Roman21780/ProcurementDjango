@@ -5,7 +5,7 @@ from backend.views import (
     PartnerUpdate, RegisterAccount, LoginAccount, CategoryView,
     ShopView, ProductInfoView, BasketView, AccountDetails,
     ContactView, OrderView, PartnerState, PartnerOrders,
-    ConfirmAccount, OrderStatusUpdateView
+    ConfirmAccount, OrderStatusUpdateView, UploadAvatarView, UploadProductImageView
 )
 
 
@@ -20,6 +20,7 @@ urlpatterns = [
     path('user/login/', LoginAccount.as_view(), name='user-login'),
     path('user/password_reset/', reset_password_request_token, name='password-reset'),
     path('user/password_reset/confirm/', reset_password_confirm, name='password-reset-confirm'),
+    path('user/avatar', UploadAvatarView.as_view(), name='upload-avatar'),
 
     # Каталог товаров
     path('categories/', CategoryView.as_view(), name='categories'),
@@ -34,6 +35,7 @@ urlpatterns = [
     path('partner/update/', PartnerUpdate.as_view(), name='partner-update'),
     path('partner/state/', PartnerState.as_view(), name='partner-state'),
     path('partner/orders/', PartnerOrders.as_view(), name='partner-orders'),
+    path('partner/product/image', UploadProductImageView.as_view(), name='upload-product-image'),
 
     # Админка
     path('admin/order/status/', OrderStatusUpdateView.as_view(), name='admin-order-status'),

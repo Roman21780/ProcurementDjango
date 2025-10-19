@@ -43,6 +43,9 @@ INSTALLED_APPS = [
     'django_celery_beat',
     'django_celery_results',
 
+    # imagekit
+    'imagekit',
+
     # Local apps
     'backend',
 
@@ -303,6 +306,13 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# ImageKit
+IMAGEKIT_DEFAULT_CACHEFILE_BACKEND = 'imagekit.cachefiles.backends.Simple'
+IMAGEKIT_CACHEFILE_DIR = 'cache'
+IMAGEKIT_PILLOW_DEFAULT_OPTIONS = {
+    'quality': 85,
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

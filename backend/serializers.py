@@ -113,6 +113,9 @@ class UserSerializer(serializers.ModelSerializer):
     
     Включает в себя контактную информацию пользователя.
     """
+    avatar_url = serializers.SerializerMethodField()
+    avatar_thumbnail_url = serializers.SerializerMethodField()
+
     contacts = ContactSerializer(many=True, read_only=True)
     email = serializers.EmailField(
         validators=[
@@ -126,7 +129,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'email', 'company', 'position', 'type', 'contacts')
+        fields = ('id', 'first_name', 'last_name', 'email', 'company', 'position', 'type', 'contacts', 'avatar_url', 'avatar_thumbnail_url')
         read_only_fields = ('id',)
         extra_kwargs = {
             'first_name': {
@@ -171,6 +174,20 @@ class UserSerializer(serializers.ModelSerializer):
             }
         }
 
+    def get_avatar_url(self, obj):
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+        return None
+
+    def get_avatar_thumbnail_url(self, obj):
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar_thumbnail.url)
+        return None
+
 
 class CategorySerializer(serializers.ModelSerializer):
     """Сериализатор для категорий"""
@@ -209,14 +226,81 @@ class ProductParameterSerializer(serializers.ModelSerializer):
 
 
 class ProductInfoSerializer(serializers.ModelSerializer):
-    """Сериализатор для информации о товаре"""
-    product = ProductSerializer(read_only=True)
+    """
+    Сериализатор для информации о товаре.
+    
+    Поля:
+        id: Уникальный идентификатор товара (только чтение)
+        model: Модель товара
+        product: Связанный продукт (только чтение)
+        shop: Магазин (только чтение)
+        quantity: Количество товара в наличии
+        price: Цена товара
+        price_rrc: Рекомендуемая розничная цена
+        product_parameters: Параметры товара (только чтение)
+        image_url: URL полного изображения товара (только чтение)
+        image_thumbnail_url: URL миниатюры изображения товара (только чтение)
+    """
+    product = serializers.StringRelatedField()
     product_parameters = ProductParameterSerializer(many=True, read_only=True)
+    shop = serializers.StringRelatedField()
+    image_url = serializers.SerializerMethodField()
+    image_thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductInfo
-        fields = ('id', 'model', 'product', 'shop', 'quantity', 'price', 'price_rrc', 'product_parameters',)
+        fields = (
+            'id', 'model', 'product', 'shop', 'quantity', 
+            'price', 'price_rrc', 'product_parameters', 
+            'image_url', 'image_thumbnail_url',
+        )
         read_only_fields = ('id',)
+
+    def get_image_url(self, obj) -> Optional[str]:
+        """
+        Возвращает абсолютный URL изображения товара.
+        
+        Args:
+            obj: Экземпляр ProductInfo
+            
+        Returns:
+            str: Абсолютный URL изображения или None, если изображение отсутствует
+        """
+        if not obj.image:
+            return None
+            
+        try:
+            request = self.context.get('request')
+            if request and hasattr(obj.image, 'url'):
+                return request.build_absolute_uri(obj.image.url)
+        except (AttributeError, ValueError):
+            # Логируем ошибку, но не прерываем выполнение
+            pass
+            
+        return None
+
+    def get_image_thumbnail_url(self, obj) -> Optional[str]:
+        """
+        Возвращает абсолютный URL миниатюры изображения товара.
+        
+        Args:
+            obj: Экземпляр ProductInfo
+            
+        Returns:
+            str: Абсолютный URL миниатюры или None, если миниатюра отсутствует
+        """
+        if not obj.image or not hasattr(obj, 'image_thumbnail') or not obj.image_thumbnail:
+            return None
+            
+        try:
+            request = self.context.get('request')
+            if request and hasattr(obj.image_thumbnail, 'url'):
+                return request.build_absolute_uri(obj.image_thumbnail.url)
+        except (AttributeError, ValueError):
+            # Логируем ошибку, но не прерываем выполнение
+            pass
+            
+        return None
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

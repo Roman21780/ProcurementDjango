@@ -33,6 +33,140 @@ from drf_spectacular.types import OpenApiTypes
 from django.shortcuts import redirect
 from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view
+from rest_framework.parsers import MultiPartParser, FormParser
+
+
+class UploadAvatarView(APIView):
+    """
+    Загрузка аватара пользователя
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    @extend_schema(
+        summary="Загрузить аватар",
+        description="Загрузить изображение профиля пользователя",
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'avatar': {
+                        'type': 'string',
+                        'format': 'binary'
+                    }
+                }
+            }
+        },
+        responses={200: UserSerializer},
+        tags=['Пользователи']
+    )
+    def post(self, request, *args, **kwargs):
+        """Загрузить аватар"""
+        if 'avatar' not in request.FILES:
+            return Response({
+                'Status': False,
+                'Error': 'Файл не был загружен'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        avatar = request.FILES['avatar']
+
+        # Проверка размера файла (макс. 5MB)
+        if avatar.size > 5 * 1024 * 1024:
+            return Response({
+                'Status': False,
+                'Error': 'Файл слишком большой (макс. 5MB)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Проверка типа файла
+        allowed_types = ['image/jpeg', 'image/png', 'image/jpg']
+        if avatar.content_type not in allowed_types:
+            return Response({
+                'Status': False,
+                'Error': 'Неподдерживаемый формат файла'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Сохраняем аватар
+        request.user.avatar = avatar
+        request.user.save()
+
+        serializer = UserSerializer(request.user, context={'request': request})
+        return Response({
+            'Status': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class UploadProductImageView(APIView):
+    """
+    Загрузка изображения товара
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    @extend_schema(
+        summary="Загрузить изображение товара",
+        description="Загрузить изображение для товара (только для поставщиков)",
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'product_info_id': {'type': 'integer'},
+                    'image': {'type': 'string', 'format': 'binary'}
+                }
+            }
+        },
+        tags=['Поставщик']
+    )
+    def post(self, request, *args, **kwargs):
+        """Загрузить изображение товара"""
+        if request.user.type != 'shop':
+            return Response({
+                'Status': False,
+                'Error': 'Только для магазинов'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        product_info_id = request.data.get('product_info_id')
+        if not product_info_id:
+            return Response({
+                'Status': False,
+                'Error': 'Не указан product_info_id'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if 'image' not in request.FILES:
+            return Response({
+                'Status': False,
+                'Error': 'Файл не был загружен'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            product_info = ProductInfo.objects.get(
+                id=product_info_id,
+                shop__user=request.user
+            )
+        except ProductInfo.DoesNotExist:
+            return Response({
+                'Status': False,
+                'Error': 'Товар не найден'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        image = request.FILES['image']
+
+        # Проверка размера (макс. 10MB)
+        if image.size > 10 * 1024 * 1024:
+            return Response({
+                'Status': False,
+                'Error': 'Файл слишком большой (макс. 10MB)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Сохраняем изображение
+        product_info.image = image
+        product_info.save()
+
+        serializer = ProductInfoSerializer(product_info, context={'request': request})
+        return Response({
+            'Status': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class RegisterAccount(APIView):

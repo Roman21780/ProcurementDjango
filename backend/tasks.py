@@ -1,5 +1,7 @@
 from csv import excel
-
+from PIL import Image
+from io import BytesIO
+from django.core.files.base import ContentFile
 from celery import shared_task
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
@@ -15,6 +17,113 @@ from backend.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task
+def process_user_avatar(user_id):
+    """
+    Асинхронная обработка аватара пользователя
+    """
+    try:
+        from backend.models import User
+        user = User.objects.get(id=user_id)
+
+        if not user.avatar:
+            return
+
+        # Открываем изображение
+        image = Image.open(user.avatar.path)
+
+        # Преобразуем в RGB если необходимо
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        # Применяем оптимизацию
+        output = BytesIO()
+        image.save(output, format='JPEG', quality=85, optimize=True)
+        output.seek(0)
+
+        # Сохраняем оптимизированное изображение
+        user.avatar.save(
+            user.avatar.name,
+            ContentFile(output.read()),
+            save=True
+        )
+
+        logger.info(f"Avatar processed for user {user_id}")
+        return {'status': 'success', 'user_id': user_id}
+
+    except Exception as e:
+        logger.error(f"Error processing avatar for user {user_id}: {str(e)}")
+        return {'status': 'error', 'message': str(e)}
+
+
+@shared_task
+def process_product_image(product_info_id):
+    """
+    Асинхронная обработка изображения товара
+    """
+    try:
+        from backend.models import ProductInfo
+        product_info = ProductInfo.objects.get(id=product_info_id)
+
+        if not product_info.image:
+            return
+
+        # Открываем изображение
+        image = Image.open(product_info.image.path)
+
+        # Преобразуем в RGB
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        # Применяем оптимизацию
+        output = BytesIO()
+        image.save(output, format='JPEG', quality=90, optimize=True)
+        output.seek(0)
+
+        # Сохраняем
+        product_info.image.save(
+            product_info.image.name,
+            ContentFile(output.read()),
+            save=True
+        )
+
+        logger.info(f"Product image processed for ProductInfo {product_info_id}")
+        return {'status': 'success', 'product_info_id': product_info_id}
+
+    except Exception as e:
+        logger.error(f"Error processing product image {product_info_id}: {str(e)}")
+        return {'status': 'error', 'message': str(e)}
+
+
+@shared_task
+def cleanup_old_images():
+    """
+    Периодическая задача для очистки старых неиспользуемых изображений
+    """
+    import os
+    from django.conf import settings
+    from backend.models import User, ProductInfo
+
+    media_root = settings.MEDIA_ROOT
+    cleaned = 0
+
+    # Очистка старых аватаров
+    avatars_dir = os.path.join(media_root, 'avatars')
+    if os.path.exists(avatars_dir):
+        for filename in os.listdir(avatars_dir):
+            filepath = os.path.join(avatars_dir, filename)
+            # Проверяем, используется ли файл
+            if not User.objects.filter(avatar__contains=filename).exists():
+                try:
+                    os.remove(filepath)
+                    cleaned += 1
+                except Exception as e:
+                    logger.error(f"Error removing file {filepath}: {e}")
+
+    logger.info(f"Cleaned up {cleaned} old images")
+    return {'cleaned': cleaned}
 
 
 @shared_task
