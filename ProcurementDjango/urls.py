@@ -11,6 +11,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView
 )
+from backend.views import social_auth_complete
 
 def api_root(request):
     """Корневая страница API"""
@@ -29,6 +30,8 @@ def api_root(request):
 
 urlpatterns = [
     path('', api_root, name='api-root'),
+    path('auth/', include('social_django.urls', namespace='social')),
+    path('auth/complete/', social_auth_complete, name='social-auth-complete'),
     path('admin/', admin.site.urls),
     path('api/v1/', include('backend.urls', namespace='backend')),
 

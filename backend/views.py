@@ -30,6 +30,9 @@ from backend.signals import new_user_registered, new_order
 from backend.tasks import send_email_task, import_shop_data_task
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
+from django.shortcuts import redirect
+from django.contrib.auth import get_user_model
+from rest_framework.decorators import api_view
 
 
 class RegisterAccount(APIView):
@@ -956,6 +959,32 @@ class PartnerOrders(APIView):
 
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+User = get_user_model()
+@api_view(['GET'])
+def social_auth_complete(request):
+    """
+    Callback после успешной авторизации через социальную сеть.
+    Возвращает токен пользователя.
+    """
+    user = request.user
+    if user.is_authenticated:
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'Status': True,
+            'Token': token.key,
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            }
+        })
+    return Response(
+        {'Status': False, 'Error': 'Not authenticated'},
+        status=401
+    )
+
 
 
 class OrderStatusUpdateView(APIView):
