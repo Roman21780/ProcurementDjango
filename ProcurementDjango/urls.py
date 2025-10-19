@@ -12,6 +12,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView
 )
 from backend.views import social_auth_complete
+from baton.autodiscover import admin as baton_admin
 
 def api_root(request):
     """Корневая страница API"""
@@ -33,6 +34,7 @@ urlpatterns = [
     path('auth/', include('social_django.urls', namespace='social')),
     path('auth/complete/', social_auth_complete, name='social-auth-complete'),
     path('admin/', admin.site.urls),
+    path('baton/', include('baton.urls')),
     path('api/v1/', include('backend.urls', namespace='backend')),
 
     # OpenAPI схема и документация

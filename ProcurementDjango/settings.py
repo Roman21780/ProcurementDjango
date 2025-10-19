@@ -23,6 +23,7 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,
 
 # Application definition
 INSTALLED_APPS = [
+    'baton',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -50,7 +51,135 @@ INSTALLED_APPS = [
 
     # social
     'social_django',
+
+    # baton
+    'baton.autodiscover',
 ]
+
+# Django Baton Configuration
+BATON = {
+    'SITE_HEADER': 'Procurement Platform',
+    'SITE_TITLE': 'Procurement Admin',
+    'INDEX_TITLE': 'Панель управления закупками',
+    'SUPPORT_HREF': 'mailto:sapunovrm21780@gmail.com',
+    'COPYRIGHT': 'Copyright © 2025 Procurement Platform',
+    'POWERED_BY': '<a href="https://github.com/Roman21780/ProcurementDjango">Procurement Team</a>',
+    'CONFIRM_UNSAVED_CHANGES': True,
+    'SHOW_MULTIPART_UPLOADING': True,
+    'ENABLE_IMAGES_PREVIEW': True,
+    'CHANGELIST_FILTERS_IN_MODAL': True,
+    'CHANGELIST_FILTERS_ALWAYS_OPEN': False,
+    'CHANGELIST_FILTERS_FORM': True,
+    'MENU_ALWAYS_COLLAPSED': False,
+    'MENU_TITLE': 'Меню',
+    'MESSAGES_TOASTS': False,
+    'GRAVATAR_DEFAULT_IMG': 'retro',
+    'GRAVATAR_ENABLED': True,
+    'LOGIN_SPLASH': '/static/core/img/login-splash.png',
+    'FORCE_THEME': None,  # None, 'light', 'dark'
+
+    # Меню навигации
+    'MENU': (
+        {'type': 'title', 'label': 'Главная', 'apps': ('auth',)},
+        {
+            'type': 'app',
+            'name': 'auth',
+            'label': 'Аутентификация',
+            'icon': 'fa fa-lock',
+            'models': (
+                {
+                    'name': 'user',
+                    'label': 'Пользователи',
+                },
+                {
+                    'name': 'group',
+                    'label': 'Группы',
+                },
+            )
+        },
+        {'type': 'title', 'label': 'Управление заказами', 'apps': ('backend',)},
+        {
+            'type': 'app',
+            'name': 'backend',
+            'label': 'Основные модули',
+            'icon': 'fa fa-shopping-cart',
+            'models': (
+                {
+                    'name': 'user',
+                    'label': 'Пользователи',
+                    'icon': 'fa fa-users'
+                },
+                {
+                    'name': 'shop',
+                    'label': 'Магазины',
+                    'icon': 'fa fa-store'
+                },
+                {
+                    'name': 'category',
+                    'label': 'Категории',
+                    'icon': 'fa fa-tags'
+                },
+                {
+                    'name': 'product',
+                    'label': 'Товары',
+                    'icon': 'fa fa-box'
+                },
+                {
+                    'name': 'productinfo',
+                    'label': 'Информация о товарах',
+                    'icon': 'fa fa-info-circle'
+                },
+                {
+                    'name': 'parameter',
+                    'label': 'Параметры',
+                    'icon': 'fa fa-sliders-h'
+                },
+                {
+                    'name': 'order',
+                    'label': 'Заказы',
+                    'icon': 'fa fa-shopping-bag'
+                },
+                {
+                    'name': 'orderitem',
+                    'label': 'Товары в заказах',
+                    'icon': 'fa fa-list'
+                },
+                {
+                    'name': 'contact',
+                    'label': 'Контакты',
+                    'icon': 'fa fa-address-book'
+                },
+            )
+        },
+        {'type': 'title', 'label': 'Система', 'apps': ('authtoken', 'django_celery_beat', 'django_celery_results')},
+        {
+            'type': 'app',
+            'name': 'authtoken',
+            'label': 'API Токены',
+            'icon': 'fa fa-key',
+        },
+        {
+            'type': 'app',
+            'name': 'django_celery_beat',
+            'label': 'Celery Beat',
+            'icon': 'fa fa-clock',
+        },
+        {
+            'type': 'app',
+            'name': 'django_celery_results',
+            'label': 'Celery Results',
+            'icon': 'fa fa-tasks',
+        },
+        {'type': 'free', 'label': 'API Документация', 'url': '/api/docs/', 'icon': 'fa fa-book'},
+        {'type': 'free', 'label': 'Перейти на сайт', 'url': '/', 'icon': 'fa fa-home'},
+    ),
+
+    # Analytics
+    'ANALYTICS': {
+        'CREDENTIALS': os.path.join(BASE_DIR, 'credentials.json'),
+        'VIEW_ID': '12345678',
+    }
+}
 
 AUTHENTICATION_BACKENDS = [
     'social_core.backends.google.GoogleOAuth2',
