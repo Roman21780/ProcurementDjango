@@ -4,7 +4,62 @@ Django settings for ProcurementDjango project.
 
 import os
 from pathlib import Path
+
+
 from dotenv import load_dotenv
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+import logging
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
+
+# Sentry Configuration
+SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT', 'development')
+
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(
+                transaction_style='url',
+                middleware_spans=True,
+                signals_spans=True,
+                cache_spans=True,
+            ),
+            CeleryIntegration(
+                monitor_beat_tasks=True,
+                propagate_traces=True,
+            ),
+            RedisIntegration(),
+            LoggingIntegration(
+                level=logging.INFO,
+                event_level=logging.ERROR
+            ),
+        ],
+
+        environment=SENTRY_ENVIRONMENT,
+
+        # Частота отправки трейсов производительности
+        # 1.0 = 100% для development, 0.1-0.3 для production
+        traces_sample_rate=1.0,
+
+        # Профилирование производительности
+        profiles_sample_rate=1.0,
+
+        # Отправлять персональные данные (email, IP) для дебага
+        send_default_pii=True,
+
+        # Прикреплять полный стек вызовов
+        attach_stacktrace=True,
+
+        # Функция для фильтрации событий перед отправкой
+        before_send=lambda event, hint: event,
+    )
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -14,9 +69,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me-in-production')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
 
 # Исправлена обработка ALLOWED_HOSTS с обрезкой пробелов
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,10.0.2.15').split(',')]
@@ -233,6 +285,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'backend.middleware.SentryContextMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',

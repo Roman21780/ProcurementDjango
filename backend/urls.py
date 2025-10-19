@@ -5,7 +5,8 @@ from backend.views import (
     PartnerUpdate, RegisterAccount, LoginAccount, CategoryView,
     ShopView, ProductInfoView, BasketView, AccountDetails,
     ContactView, OrderView, PartnerState, PartnerOrders,
-    ConfirmAccount, OrderStatusUpdateView, UploadAvatarView, UploadProductImageView
+    ConfirmAccount, OrderStatusUpdateView, UploadAvatarView,
+    UploadProductImageView, SentryTestView
 )
 
 
@@ -39,4 +40,5 @@ urlpatterns = [
 
     # Админка
     path('admin/order/status/', OrderStatusUpdateView.as_view(), name='admin-order-status'),
+    path('sentry/test/', SentryTestView.as_view(), name='sentry-test'),
 ]

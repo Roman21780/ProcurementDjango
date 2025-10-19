@@ -9,12 +9,14 @@ from rest_framework.authtoken.models import Token
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.request import Request
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from requests import get
 from ujson import loads as load_json
 from yaml import load as load_yaml, Loader
 from django.shortcuts import get_object_or_404
+from typing import Any
 
 from backend.models import (
     Shop, Category, Product, ProductInfo, Parameter,
@@ -34,6 +36,103 @@ from django.shortcuts import redirect
 from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view
 from rest_framework.parsers import MultiPartParser, FormParser
+import sentry_sdk
+
+
+class SentryTestView(APIView):
+    """
+    APIView для тестирования интеграции Sentry.
+    Вызывает различные типы исключений для проверки их отлавливания в Sentry.
+    """
+
+    @extend_schema(
+        summary="Тестирование Sentry - деление на ноль",
+        description="Вызывает ZeroDivisionError для проверки отлова ошибок в Sentry",
+        responses={
+            500: {
+                "description": "Internal Server Error - ошибка будет отправлена в Sentry"
+            }
+        },
+        tags=['Testing']
+    )
+    def get(self, request, *args, **kwargs):
+        """
+        Тестовый endpoint для проверки Sentry.
+        Вызывает исключение деления на ноль.
+        """
+        # Добавляем контекст для Sentry
+        with sentry_sdk.configure_scope() as scope:
+            scope.set_tag("test_type", "division_by_zero")
+            scope.set_context("request_info", {
+                "method": request.method,
+                "path": request.path,
+                "user_email": getattr(request.user, 'email', 'Anonymous'),
+            })
+
+        # Вызываем исключение
+        division_by_zero = 1 / 0
+
+        return Response({"message": "This will never be reached"})
+
+    @extend_schema(
+        summary="Тестирование Sentry - KeyError",
+        description="Вызывает KeyError для проверки отлова ошибок в Sentry",
+        responses={
+            500: {
+                "description": "Internal Server Error - ошибка будет отправлена в Sentry"
+            }
+        },
+        tags=['Testing']
+    )
+    def post(self, request, *args, **kwargs):
+        """
+        Тестовый endpoint для проверки Sentry.
+        Вызывает KeyError при обращении к несуществующему ключу.
+        """
+        with sentry_sdk.configure_scope() as scope:
+            scope.set_tag("test_type", "key_error")
+            scope.set_user({
+                "id": getattr(request.user, 'id', None),
+                "email": getattr(request.user, 'email', None),
+            })
+
+        # Вызываем KeyError
+        test_dict = {"key1": "value1"}
+        value = test_dict["nonexistent_key"]
+
+        return Response({"message": "This will never be reached"})
+
+    @extend_schema(
+        summary="Тестирование Sentry - Custom Exception",
+        description="Вызывает пользовательское исключение с дополнительным контекстом",
+        responses={
+            500: {
+                "description": "Internal Server Error - ошибка будет отправлена в Sentry"
+            }
+        },
+        tags=['Testing']
+    )
+    def put(self, request, *args, **kwargs):
+        """
+        Тестовый endpoint с пользовательским исключением и расширенным контекстом.
+        """
+        with sentry_sdk.configure_scope() as scope:
+            scope.set_tag("test_type", "custom_exception")
+            scope.set_context("custom_data", {
+                "request_data": request.data,
+                "query_params": dict(request.query_params),
+                "headers": dict(request.headers),
+            })
+            scope.set_level("error")
+
+        # Отправляем пользовательское сообщение в Sentry
+        sentry_sdk.capture_message(
+            "Custom test message from Sentry integration",
+            level="info"
+        )
+
+        # Вызываем пользовательское исключение
+        raise ValueError("This is a custom test exception for Sentry")
 
 
 class UploadAvatarView(APIView):
@@ -467,29 +566,100 @@ class ProductInfoView(APIView):
         responses={200: ProductInfoSerializer(many=True)},
         tags=['Каталог']
     )
-    def get(self, request, *args, **kwargs):
-        """Получить список товаров с фильтрацией"""
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """
+        Получить список товаров с фильтрацией.
 
-        query = Q(shop__state=True)
+        Параметры запроса:
+            shop_id (int, optional): ID магазина для фильтрации
+            category_id (int, optional): ID категории для фильтрации
+
+        Возвращает:
+            Response: Список товаров с информацией о магазинах и категориях
+        """
         shop_id = request.query_params.get('shop_id')
         category_id = request.query_params.get('category_id')
 
-        if shop_id:
-            query = query & Q(shop_id=shop_id)
+        try:
+            # Добавляем хлебные крошки для отслеживания
+            sentry_sdk.add_breadcrumb(
+                category='query',
+                message='Fetching product info',
+                level='info',
+                data={
+                    'shop_id': shop_id,
+                    'category_id': category_id
+                }
+            )
 
-        if category_id:
-            query = query & Q(product__category_id=category_id)
+            # Строим базовый запрос
+            query = Q(shop__state=True)
 
-        # Фильтруем и отбрасываем дубликаты
-        queryset = ProductInfo.objects.filter(query).select_related(
-            'shop', 'product__category'
-        ).prefetch_related(
-            'product_parameters__parameter'
-        ).distinct()
+            # Применяем фильтры, если они предоставлены
+            if shop_id:
+                try:
+                    shop_id_int = int(shop_id)
+                    query &= Q(shop__id=shop_id_int)
+                    sentry_sdk.add_breadcrumb(
+                        category='filter',
+                        message=f'Filtering by shop_id: {shop_id_int}',
+                        level='debug'
+                    )
+                except (ValueError, TypeError) as e:
+                    sentry_sdk.capture_exception(e)
+                    return Response(
+                        {'error': 'shop_id должен быть числом'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-        serializer = ProductInfoSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            if category_id:
+                try:
+                    category_id_int = int(category_id)
+                    query &= Q(product__category__id=category_id_int)
+                    sentry_sdk.add_breadcrumb(
+                        category='filter',
+                        message=f'Filtering by category_id: {category_id_int}',
+                        level='debug'
+                    )
+                except (ValueError, TypeError) as e:
+                    sentry_sdk.capture_exception(e)
+                    return Response(
+                        {'error': 'category_id должен быть числом'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
+            # Выполняем запрос к БД
+            try:
+                queryset = (
+                    ProductInfo.objects
+                    .filter(query)
+                    .select_related('shop', 'product__category')
+                    .prefetch_related('product_parameters__parameter')
+                    .distinct()
+                )
+
+                serializer = ProductInfoSerializer(
+                    queryset,
+                    many=True,
+                    context={'request': request}  # Добавляем контекст для построения полных URL
+                )
+
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            except Exception as db_error:
+                sentry_sdk.capture_exception(db_error)
+                return Response(
+                    {'error': 'Ошибка при получении данных из базы'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        except Exception as e:
+            # Логируем непредвиденные ошибки
+            sentry_sdk.capture_exception(e)
+            return Response(
+                {'error': 'Внутренняя ошибка сервера'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class BasketView(APIView):
     """
