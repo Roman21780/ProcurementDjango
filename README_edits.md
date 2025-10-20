@@ -523,3 +523,101 @@ MIT License - см. файл [LICENSE](LICENSE)
 ---
 
 **Сделано с ❤️ в России**
+
+
+КОМАНДЫ ДЛЯ БЫСТРОГО СТАРТА
+Создайте Makefile:
+
+makefile
+.PHONY: help build up down restart logs test coverage migrate shell createsuperuser clean
+
+help:
+	@echo "Доступные команды:"
+	@echo "  make build          - Собрать Docker образы"
+	@echo "  make up             - Запустить контейнеры"
+	@echo "  make down           - Остановить контейнеры"
+	@echo "  make restart        - Перезапустить контейнеры"
+	@echo "  make logs           - Показать логи"
+	@echo "  make test           - Запустить тесты"
+	@echo "  make coverage       - Запустить тесты с покрытием"
+	@echo "  make migrate        - Применить миграции"
+	@echo "  make shell          - Django shell"
+	@echo "  make createsuperuser - Создать суперпользователя"
+	@echo "  make clean          - Очистить контейнеры и volumes"
+
+build:
+	docker compose build
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down
+
+restart:
+	docker compose restart
+
+logs:
+	docker compose logs -f
+
+test:
+	docker compose exec web python manage.py test backend
+
+coverage:
+	docker compose exec web coverage run --source='backend' manage.py test backend
+	docker compose exec web coverage report
+	docker compose exec web coverage html
+
+migrate:
+	docker compose exec web python manage.py migrate
+
+shell:
+	docker compose exec web python manage.py shell
+
+createsuperuser:
+	docker compose exec web python manage.py createsuperuser
+
+clean:
+	docker compose down -v
+	rm -rf staticfiles/ media/ logs/ htmlcov/ profiles/
+Использование:
+
+bash
+make build    # Сборка
+make up       # Запуск
+make test     # Тесты
+make logs     # Логи
+
+
+GitHub Secrets
+Добавьте в Settings → Secrets and variables → Actions:
+
+text
+SERVER_HOST=your-server-ip
+SERVER_USER=your-username
+SERVER_SSH_KEY=your-private-ssh-key
+SERVER_SSH_PORT=22
+
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=secure-password
+
+SLACK_WEBHOOK=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+SENTRY_AUTH_TOKEN=your-sentry-token
+SENTRY_ORG=your-org
+SENTRY_PROJECT=your-project
+
+
+секреты:
+ci:
+SLACK_WEBHOOK_URL (необязательно, для уведомлений)
+TEST_SECRET_KEY (для тестирования)
+cd:
+СЕРВЕР_ХОСТ
+SERVER_USER
+SERVER_SSH_KEY
+SERVER_SSH_PORT (необязательно)
+SLACK_WEBHOOK (необязательно)
+SENTRY_AUTH_TOKEN (необязательно)
+SENTRY_ORG (необязательно)
+SENTRY_PROJECT (необязательно)

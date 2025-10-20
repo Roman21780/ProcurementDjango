@@ -1,0 +1,266 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      version:
+        description: 'Version to deploy (default: latest)'
+        required: false
+        type: string
+        default: 'latest'
+
+env:
+  DEPLOY_PATH: /var/www/procurement
+  DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+  DOCKER_COMPOSE_FILES: '-f docker-compose.yml -f docker-compose.${{ github.event.inputs.environment || 'production' }}.yml'
+  ENV_FILE: '.env.${{ github.event.inputs.environment || 'production' }}'
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'production' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: ${{ github.event.inputs.environment == 'staging' && 'https://staging.procurement.yourdomain.com' || 'https://procurement.yourdomain.com' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v1.1.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+          ssh-auth-sock: /tmp/ssh_agent.sock
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H -p ${{ secrets.SERVER_SSH_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify server connection
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
+          script: |
+            echo "Successfully connected to ${{ secrets.SERVER_HOST }}"
+            df -h
+            free -m
+
+      - name: Create backup before deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
+          script: |
+            set -e
+            echo "Creating backup..."
+            TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            BACKUP_DIR="${{ env.DEPLOY_PATH }}/backups/$TIMESTAMP"
+            mkdir -p "$BACKUP_DIR"
+            
+            # Backup database
+            cd ${{ env.DEPLOY_PATH }}
+            docker compose $DOCKER_COMPOSE_FILES exec -T db pg_dump -U ${{ secrets.DB_USER }} ${{ secrets.DB_NAME }} > "$BACKUP_DIR/db_backup.sql"
+            
+            # Backup media files
+            rsync -a --relative ${{ env.DEPLOY_PATH }}/media "$BACKUP_DIR/"
+            
+            # Backup environment files
+            cp ${{ env.DEPLOY_PATH }}/.env* "$BACKUP_DIR/" || true
+            
+            echo "Backup completed at $BACKUP_DIR"
+
+      - name: Deploy application
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
+          script: |
+            set -e
+            echo "Starting deployment to ${{ github.event.inputs.environment || 'production' }}"
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Pull latest changes
+            git fetch --all
+            git checkout main
+            git reset --hard origin/main
+            
+            # Set correct permissions
+            chmod -R 750 .
+            chmod +x ./scripts/*
+            
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Pull latest images with retry logic
+            for i in {1..3}; do
+              if docker compose $DOCKER_COMPOSE_FILES pull; then
+                break
+              fi
+              echo "Pull attempt $i failed, retrying..."
+              sleep 5
+            done
+            
+            # Stop and remove old containers
+            docker compose $DOCKER_COMPOSE_FILES down --remove-orphans --timeout 30 || true
+            
+            # Start new containers
+            if ! docker compose $DOCKER_COMPOSE_FILES up -d --build --no-deps --force-recreate; then
+              echo "Failed to start containers, rolling back..."
+              docker compose $DOCKER_COMPOSE_FILES logs --tail=100
+              exit 1
+            fi
+            
+            # Wait for services to be ready
+            echo "Waiting for services to be ready..."
+            for i in {1..30}; do
+              if docker compose $DOCKER_COMPOSE_FILES ps | grep -q "Up (healthy)"; then
+                break
+              fi
+              echo "Waiting for containers to be healthy ($i/30)..."
+              sleep 5
+            done
+            
+            # Run database migrations
+            echo "Running migrations..."
+            docker compose $DOCKER_COMPOSE_FILES exec -T web python manage.py migrate --noinput
+            
+            # Collect static files
+            echo "Collecting static files..."
+            docker compose $DOCKER_COMPOSE_FILES exec -T web python manage.py collectstatic --noinput --clear
+            
+            # Clear cache
+            docker compose $DOCKER_COMPOSE_FILES exec -T web python manage.py clear_cache --type=all
+            
+            # Create/update admin user
+            echo "Ensuring admin user exists..."
+            docker compose $DOCKER_COMPOSE_FILES exec -T web python manage.py shell <<EOF
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            admin_email = '${{ secrets.ADMIN_EMAIL }}'
+            admin_password = '${{ secrets.ADMIN_PASSWORD }}'
+            
+            if User.objects.filter(email=admin_email).exists():
+                user = User.objects.get(email=admin_email)
+                user.set_password(admin_password)
+                user.is_staff = True
+                user.is_superuser = True
+                user.save()
+                print(f"Updated admin user: {admin_email}")
+            else:
+                User.objects.create_superuser(
+                    email=admin_email,
+                    password=admin_password,
+                    first_name='Admin',
+                    last_name='User'
+                )
+                print(f"Created new admin user: {admin_email}")
+            EOF
+            
+            # Cleanup
+            echo "Cleaning up..."
+            docker system prune -af --volumes --filter "label!=keep" || true
+            echo "Deployment completed successfully!"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            ./scripts/healthcheck.sh
+            curl -sSf http://localhost:8000/health/ > /dev/null || exit 1
+            echo "Health check passed!"
+
+      - name: Notify Slack
+        uses: rtCamp/action-slack@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_TITLE: "Deployment ${{ job.status }} - ${{ github.event.inputs.environment || 'production' }}"
+          SLACK_MESSAGE: |
+            *Repository*: ${{ github.repository }}
+            *Branch*: ${{ github.ref_name }}
+            *Commit*: ${{ github.sha }}
+            *Deployed by*: ${{ github.actor }}
+            *Environment*: ${{ github.event.inputs.environment || 'production' }}
+            *Version*: ${{ github.event.inputs.version || 'latest' }}
+            *Run URL*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          MSG_MINIMAL: true
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ github.ref_name }}
+          body: |
+            ### Changes
+            - Auto-generated release
+            - Deployed to ${{ github.event.inputs.environment || 'production' }}
+          draft: false
+          prerelease: false
+          files: |
+            CHANGELOG.md
+            docker-compose.*
+            .env.example
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Sentry release
+        if: success() && contains(fromJson('["production", "staging"]'), github.event.inputs.environment || 'production')
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        with:
+          environment: ${{ github.event.inputs.environment || 'production' }}
+          version: ${{ github.ref_name || github.sha }}
+          finalize: true
+          projects: ${{ github.repository }}
+          url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+          deploy: |
+            {
+              "env": "${{ github.event.inputs.environment || 'production' }}",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "name": "${{ github.workflow }} #${{ github.run_number }}"
+            }
+
+      - name: Cleanup old backups
+        if: always()
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
+          script: |
+            # Keep last 5 backups
+            cd ${{ env.DEPLOY_PATH }}/backups
+            ls -t | tail -n +6 | xargs -I {} rm -rf -- {}
