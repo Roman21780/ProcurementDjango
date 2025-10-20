@@ -41,6 +41,8 @@ from django.core.cache import cache
 from django.views.decorators.cache import cache_page
 from django.utils.decorators import method_decorator
 from backend.decorators import cache_api_response
+from silk.profiling.profiler import silk_profile
+from django_redis import get_redis_connection
 
 
 class SentryTestView(APIView):
@@ -555,6 +557,7 @@ class ProductInfoView(APIView):
     Использует автоматическое кэширование через cacheops.
     """
 
+    @silk_profile(name='ProductInfo List')
     @cache_api_response(timeout=60 * 10)  # Кэш на 10 минут
     @extend_schema(
         summary="Список товаров",
@@ -685,6 +688,7 @@ class BasketView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @silk_profile(name='Basket Get')
     @extend_schema(
         summary="Получить корзину",
         description="Возвращает текущее содержимое корзины пользователя",
@@ -1008,6 +1012,7 @@ class OrderView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @silk_profile(name='Order List')
     def get(self, request, *args, **kwargs):
         """Получить заказы пользователя"""
 
@@ -1357,3 +1362,46 @@ class OrderStatusUpdateView(APIView):
             'Status': False,
             'Errors': 'Не указаны все необходимые аргументы'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CacheStatsView(APIView):
+    """
+    View для отображения статистики кэширования.
+    Доступен только администраторам.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Статистика кэша",
+        description="Получить статистику использования кэша Redis",
+        tags=['Мониторинг']
+    )
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {'Error': 'Доступно только администраторам'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from backend.cache_utils import get_cache_stats
+
+        try:
+            # Получаем клиент Redis
+            redis_client = get_redis_connection("default")
+            redis_info = redis_client.info()
+
+            stats = get_cache_stats()
+            stats['redis_info'] = {
+                'used_memory_human': redis_info.get('used_memory_human'),
+                'connected_clients': redis_info.get('connected_clients'),
+                'total_commands_processed': redis_info.get('total_commands_processed'),
+                'keyspace_hits': redis_info.get('keyspace_hits', 0),
+                'keyspace_misses': redis_info.get('keyspace_misses', 0),
+            }
+
+            return Response(stats, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'Error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

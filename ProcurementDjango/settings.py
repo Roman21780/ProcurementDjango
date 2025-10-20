@@ -91,6 +91,9 @@ INSTALLED_APPS = [
     # cache
     'cacheops',
 
+    # silk
+    'silk',
+
     # CORS
     'corsheaders',
 
@@ -284,6 +287,7 @@ if DEBUG:
     INSTALLED_APPS.insert(-1, 'debug_toolbar')
 
 MIDDLEWARE = [
+    'silk.middleware.SilkyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -544,6 +548,29 @@ LOGGING = {
         },
     },
 }
+
+# ============================================================
+# DJANGO-SILK CONFIGURATION
+# ============================================================
+
+# Включить профайлер Python
+SILKY_PYTHON_PROFILER = DEBUG
+SILKY_PYTHON_PROFILER_BINARY = True
+SILKY_PYTHON_PROFILER_RESULT_PATH = BASE_DIR / 'profiles'
+
+# Максимальные размеры
+SILKY_MAX_REQUEST_BODY_SIZE = 1024 * 1024  # 1MB
+SILKY_MAX_RESPONSE_BODY_SIZE = 1024 * 1024  # 1MB
+SILKY_MAX_RECORDED_REQUESTS = 10000
+
+# Аутентификация для Silk UI
+SILKY_AUTHENTICATION = True  # Требовать авторизацию
+SILKY_AUTHORISATION = True  # Требовать права администратора
+
+# Записывать 100% запросов
+SILKY_INTERCEPT_PERCENT = 100
+SILKY_META = True
+
 
 # ============================================================
 # REDIS CACHE CONFIGURATION

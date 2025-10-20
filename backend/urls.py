@@ -6,7 +6,7 @@ from backend.views import (
     ShopView, ProductInfoView, BasketView, AccountDetails,
     ContactView, OrderView, PartnerState, PartnerOrders,
     ConfirmAccount, OrderStatusUpdateView, UploadAvatarView,
-    UploadProductImageView, SentryTestView
+    UploadProductImageView, SentryTestView, CacheStatsView
 )
 
 
@@ -41,4 +41,5 @@ urlpatterns = [
     # Админка
     path('admin/order/status/', OrderStatusUpdateView.as_view(), name='admin-order-status'),
     path('sentry/test/', SentryTestView.as_view(), name='sentry-test'),
+    path('cache/stats/', CacheStatsView.as_view(), name='cache-stats'),
 ]
