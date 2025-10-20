@@ -88,6 +88,9 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'django_rest_passwordreset',
 
+    # cache
+    'cacheops',
+
     # CORS
     'corsheaders',
 
@@ -541,6 +544,72 @@ LOGGING = {
         },
     },
 }
+
+# ============================================================
+# REDIS CACHE CONFIGURATION
+# ============================================================
+
+# Базовая конфигурация Django Cache (для view caching, sessions)
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 50,
+                'retry_on_timeout': True,
+            },
+            'IGNORE_EXCEPTIONS': True,  # Не падать, если Redis недоступен
+        },
+        'KEY_PREFIX': 'procurement',
+        'TIMEOUT': 300,  # Таймаут по умолчанию 5 минут
+    }
+}
+
+# Конфигурация django-cacheops для автоматического кэширования ORM
+CACHEOPS_REDIS = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/1')
+
+# Настройки кэширования для моделей
+CACHEOPS = {
+    # Кэшировать все запросы к Category на 1 час
+    'backend.category': {'ops': 'all', 'timeout': 60 * 60},
+
+    # Кэшировать запросы к Shop на 30 минут
+    'backend.shop': {'ops': 'all', 'timeout': 60 * 30},
+
+    # Кэшировать запросы к Product на 15 минут
+    'backend.product': {'ops': 'get', 'timeout': 60 * 15},
+
+    # Кэшировать ProductInfo на 10 минут (часто меняется)
+    'backend.productinfo': {'ops': ('get', 'fetch'), 'timeout': 60 * 10},
+
+    # Кэшировать параметры на 1 час
+    'backend.parameter': {'ops': 'all', 'timeout': 60 * 60},
+
+    # Кэшировать ProductParameter на 15 минут
+    'backend.productparameter': {'ops': ('get', 'fetch'), 'timeout': 60 * 15},
+
+    # User - кэшировать только get запросы на 5 минут
+    'backend.user': {'ops': 'get', 'timeout': 60 * 5},
+
+    # Contact, Order, OrderItem - НЕ кэшировать (критичные данные)
+}
+
+# Дополнительные настройки cacheops
+CACHEOPS_DEGRADE_ON_FAILURE = True  # Не падать если Redis недоступен
+CACHEOPS_DEFAULTS = {
+    'timeout': 60 * 15  # Таймаут по умолчанию 15 минут
+}
+
+# Отключить кэширование в DEBUG режиме (опционально)
+if DEBUG:
+    CACHEOPS_ENABLED = True  # Можно поставить False для отладки
+else:
+    CACHEOPS_ENABLED = True
 
 # Создаем директорию для логов с обработкой ошибок
 try:

@@ -37,6 +37,10 @@ from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view
 from rest_framework.parsers import MultiPartParser, FormParser
 import sentry_sdk
+from django.core.cache import cache
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
+from backend.decorators import cache_api_response
 
 
 class SentryTestView(APIView):
@@ -511,13 +515,15 @@ class CategoryView(ListAPIView):
     """
     Просмотр категорий товаров
     Возвращает список всех доступных категорий товаров.
+    Результаты кэшируются на 1 час (автоматически через cacheops).
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
+    @method_decorator(cache_page(60 * 60))  # Дополнительное кэширование на 1 час
     @extend_schema(
         summary="Список категорий",
-        description="Получить все категории товаров",
+        description='Получение списка всех категорий. Результаты кэшируются.',
         responses={200: CategorySerializer(many=True)},
         tags=['Каталог']
     )
@@ -528,21 +534,33 @@ class CategoryView(ListAPIView):
 class ShopView(ListAPIView):
     """
     Просмотр списка активных магазинов
+    Результаты кэшируются на 30 минут.
     """
     queryset = Shop.objects.filter(state=True)
     serializer_class = ShopSerializer
+
+    @method_decorator(cache_page(60 * 30))
+    @extend_schema(
+        summary='Список магазинов',
+        responses={200: ShopSerializer(many=True)},
+        tags=['Каталог']
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
 
 class ProductInfoView(APIView):
     """
     Поиск товаров с фильтрацией
+    Использует автоматическое кэширование через cacheops.
     """
 
+    @cache_api_response(timeout=60 * 10)  # Кэш на 10 минут
     @extend_schema(
         summary="Список товаров",
         description="""
             Получить список товаров с возможностью фильтрации.
-
+            Результаты кэшируются.
             **Параметры фильтрации:**
             - `shop_id` - ID магазина
             - `category_id` - ID категории
