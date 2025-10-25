@@ -6,7 +6,7 @@ from backend.views import (
     ShopView, ProductInfoView, BasketView, AccountDetails,
     ContactView, OrderView, PartnerState, PartnerOrders,
     ConfirmAccount, OrderStatusUpdateView, UploadAvatarView,
-    UploadProductImageView, SentryTestView, CacheStatsView
+    UploadProductImageView, SentryTestView, CacheStatsView, HealthCheckView
 )
 
 
@@ -14,6 +14,7 @@ app_name = 'backend'
 
 urlpatterns = [
     # Пользовательские маршруты
+    path('health/', HealthCheckView.as_view(), name='health-check'),
     path('user/register/', RegisterAccount.as_view(), name='user-register'),
     path('user/register/confirm/', ConfirmAccount.as_view(), name='user-register-confirm'),
     path('user/details/', AccountDetails.as_view(), name='user-details'),

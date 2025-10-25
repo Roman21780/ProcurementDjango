@@ -43,6 +43,26 @@ from django.utils.decorators import method_decorator
 from backend.decorators import cache_api_response
 from silk.profiling.profiler import silk_profile
 from django_redis import get_redis_connection
+from django.utils import timezone
+
+
+class HealthCheckView(APIView):
+    """
+    Endpoint для проверки здоровья приложения (healthcheck).
+    Используется Docker для определения статуса контейнера.
+    """
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        return Response(
+            {
+                "status": "healthy",
+                "message": "Application is running",
+                "timestamp": str(timezone.now())
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class SentryTestView(APIView):

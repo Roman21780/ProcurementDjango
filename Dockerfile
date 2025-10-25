@@ -14,38 +14,44 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Создаём и переключаемся на непривилегированного пользователя
-RUN addgroup --system django && adduser --system --ingroup django django
-
 # Копируем и устанавливаем зависимости
 WORKDIR /build
 COPY requirements.txt .
-RUN pip install --user --no-warn-script-location -r requirements.txt
+RUN pip install --no-warn-script-location -r requirements.txt
 
 # Финальный образ
 FROM python:3.13.0-slim
 
-# Копируем Python-зависимости из builder
-COPY --from=builder /root/.local /root/.local
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
+# Копируем Python-зависимости из builder В СИСТЕМНУЮ ДИРЕКТОРИЮ
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Устанавливаем только необходимые пакеты
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Создаём непривилегированного пользователя
+RUN addgroup --system django && adduser --system --ingroup django django
 
 # Настройка рабочей директории
 WORKDIR /app
-RUN mkdir -p /app/staticfiles /app/media /app/logs /app/data \
+RUN mkdir -p /app/staticfiles /app/media /app/logs /app/data /app/profiles \
     && chown -R django:django /app
+
+# Создаём файл логов с правильными правами
+RUN touch /app/logs/django.log && \
+    chown django:django /app/logs/django.log && \
+    chmod 666 /app/logs/django.log
 
 # Копируем проект
 COPY --chown=django:django . .
 
-# Убедимся, что скрипты в PATH
-ENV PATH="/root/.local/bin:${PATH}" \
-    PYTHONPATH="/app"
+# Настраиваем переменные окружения
+ENV PYTHONPATH="/app" \
+    PATH="/usr/local/bin:${PATH}"
 
 # Переключаемся на непривилегированного пользователя
 USER django
