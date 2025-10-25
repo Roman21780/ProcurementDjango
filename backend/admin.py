@@ -50,7 +50,7 @@ class ShopAdmin(admin.ModelAdmin):
     user_email.short_description = 'Email владельца'
 
     def product_links(self, obj):
-        count = obj.productinfo_set.count()
+        count = obj.product_infos.count()
         url = (
             reverse('admin:backend_productinfo_changelist')
             + f'?shop__id__exact={obj.id}'
@@ -77,7 +77,7 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
     def productinfo_count(self, obj):
-        count = obj.productinfo_set.count()
+        count = obj.product_infos.count()
         url = (
             reverse('admin:backend_productinfo_changelist')
             + f'?product__id__exact={obj.id}'
