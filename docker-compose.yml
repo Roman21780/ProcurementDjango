@@ -83,6 +83,7 @@ services:
       - TZ=${TZ:-Europe/Moscow}
       - PYTHONUNBUFFERED=1
     volumes:
+      - ./backend:/app/backend
       - static_volume:/app/staticfiles
       - media_volume:/app/media
       - logs_volume:/app/logs
