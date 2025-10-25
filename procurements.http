@@ -17,7 +17,7 @@ GET {{apiUrl}}/shops
 
 ### Backend-приложение для автоматизации закупок - HTTP тесты
 ### Базовый URL
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost
 @apiUrl = {{baseUrl}}/api/v1
 
 ### Переменные для тестирования
@@ -129,11 +129,11 @@ client.global.set("shopToken", response.body.Token);
 
 ### 2.1 Получить данные пользователя
 GET {{apiUrl}}/user/details
-Authorization: Token b7d8bcf0545900969339473199256f7a01762e0f
+Authorization: Token e3434d522f96ac980a0ece0f3774fbcf87a24aaf
 
 ### 2.2 Обновить данные пользователя
 POST {{apiUrl}}/user/details
-Authorization: Token 2cc54c9ef1d372734ce9a65370a31d69d47d3f7b
+Authorization: Token e3434d522f96ac980a0ece0f3774fbcf87a24aaf
 Content-Type: application/json
 
 {
@@ -157,7 +157,7 @@ Content-Type: application/json
 
 ### 3.1 Создать контакт
 POST {{apiUrl}}/user/contact
-Authorization: Token b7d8bcf0545900969339473199256f7a01762e0f
+Authorization: Token e3434d522f96ac980a0ece0f3774fbcf87a24aaf
 Content-Type: application/json
 
 {

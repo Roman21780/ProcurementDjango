@@ -44,6 +44,7 @@ from backend.decorators import cache_api_response
 from silk.profiling.profiler import silk_profile
 from django_redis import get_redis_connection
 from django.utils import timezone
+from rest_framework.permissions import AllowAny
 
 
 class HealthCheckView(APIView):
@@ -301,6 +302,8 @@ class RegisterAccount(APIView):
     После регистрации магазина автоматически создается объект Shop.
     """
 
+    permission_classes = [AllowAny]
+
     @extend_schema(
         summary="Регистрация пользователя",
         description="""
@@ -397,6 +400,8 @@ class ConfirmAccount(APIView):
     """
     Подтверждение email адреса
     """
+
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         """Подтверждение email по токену"""
