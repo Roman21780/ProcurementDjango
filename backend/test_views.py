@@ -566,12 +566,8 @@ class UploadAvatarTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
         self.url = reverse('backend:upload-avatar')
 
-    @patch('backend.views.default_storage.save')
-    def test_upload_avatar(self, mock_save):
+    def test_upload_avatar(self):
         """Успешная загрузка аватара"""
-        # Настраиваем мок для сохранения файла
-        mock_save.return_value = 'avatars/test.jpg'
-
         # Создаем тестовый файл
         image = SimpleUploadedFile(
             name='test.jpg',
@@ -581,6 +577,7 @@ class UploadAvatarTests(APITestCase):
 
         response = self.client.post(self.url, {'avatar': image}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['Status'])
 
     def test_upload_invalid_file(self):
         """Попытка загрузки невалидного файла"""
@@ -593,7 +590,7 @@ class UploadAvatarTests(APITestCase):
 
         response = self.client.post(self.url, {'avatar': text_file}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Errors', response.data)
+        self.assertIn('Error', response.data)
 
 
 import json
