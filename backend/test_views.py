@@ -186,7 +186,7 @@ class RegisterAccountTests(APITestCase):
         User.objects.all().delete()
 
         User.objects.create_user(
-            email='existing@example.com',
+            email='existing_test_dup@example.com',
             password='TestPass123!',
             first_name='Existing',
             last_name='User',
@@ -197,7 +197,7 @@ class RegisterAccountTests(APITestCase):
         duplicate_data = {
             'first_name': 'Test',
             'last_name': 'User',
-            'email': 'existing@example.com',
+            'email': 'existing_test_dup@example.com',
             'password': 'TestPass123!',
             'company': 'Test Company',
             'position': 'Test Position',
@@ -568,11 +568,17 @@ class UploadAvatarTests(APITestCase):
 
     def test_upload_avatar(self):
         """Успешная загрузка аватара"""
-        # Создаем тестовый файл
+        # Создаем минимальный валидный PNG файл
+        png_data = (
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+            b'\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00'
+            b'\x00\x01\x01\x00\x05\x18N\xfc\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+
         image = SimpleUploadedFile(
-            name='test.jpg',
-            content=b'fake image content',
-            content_type='image/jpeg'
+            name='test.png',
+            content=png_data,
+            content_type='image/png'
         )
 
         response = self.client.post(self.url, {'avatar': image}, format='multipart')
