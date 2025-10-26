@@ -4,6 +4,8 @@
 
 ### 0.1 Очистка тестовых данных (выполнить в терминале перед тестами)
 ### python manage.py clear_test_data --keep-superuser
+### docker compose exec web python manage.py clear_test_data
+### docker compose exec web python manage.py clear_test_data --keep-superuser
 
 ### 0.2 Проверка что товары из YAML на месте
 GET {{apiUrl}}/products/
