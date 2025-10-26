@@ -6,14 +6,18 @@
 ### python manage.py clear_test_data --keep-superuser
 
 ### 0.2 Проверка что товары из YAML на месте
-GET {{apiUrl}}/products
+GET {{apiUrl}}/products/
 
 ### 0.3 Проверка что категории из YAML на месте
-GET {{apiUrl}}/categories
+GET {{apiUrl}}/categories/
 
 ### 0.4 Проверка что магазин из YAML активен
-GET {{apiUrl}}/shops
+GET {{apiUrl}}/shops/
 
+### Активация существующих пользователей (выполнить в терминале)
+# docker compose exec web python manage.py shell -c 'from backend.models import User; User.objects.filter(email="ivan@example.com").update(is_active=True); print("User activated")'
+### Получить токен подтверждения (выполнить в терминале)
+# docker compose exec web python manage.py shell -c 'from backend.models import ConfirmEmailToken; token = ConfirmEmailToken.objects.filter(user__email="test@example.com").first(); print(token.key if token else "No token found")'
 
 ### Backend-приложение для автоматизации закупок - HTTP тесты
 ### Базовый URL
@@ -31,7 +35,7 @@ GET {{apiUrl}}/shops
 ###############################################################################
 
 ### 1.1 Регистрация покупателя
-POST {{apiUrl}}/user/register
+POST {{apiUrl}}/user/register/
 Content-Type: application/json
 
 {
@@ -78,14 +82,24 @@ else:
     print("Токен не найден. Возможно, пользователь уже активен или токен не был создан.")
 exit()
 
+### или вот так:
+docker compose exec web python manage.py shell -c "
+from django.contrib.auth import get_user_model;
+from rest_framework.authtoken.models import Token;
+User = get_user_model();
+shop_user = User.objects.get(email='shop@example.com');
+token, created = Token.objects.get_or_create(user=shop_user);
+print(f'Token for {shop_user.email}: {token.key}');
+"
+
 
 ### 1.3.1 Подтверждение email (замените token на реальный из письма)
-POST {{apiUrl}}/user/register/confirm
+POST {{apiUrl}}/user/register/confirm/
 Content-Type: application/json
 
 {
   "email": "{{userEmail}}",
-  "token": "d34e69bef545a"
+  "token": "9152d63b27667bd8ff02"
 }
 
 ### 1.3.2 Подтверждение email поставщика
@@ -99,7 +113,7 @@ Content-Type: application/json
 
 
 ### 1.4 Авторизация покупателя
-POST {{apiUrl}}/user/login
+POST {{apiUrl}}/user/login/
 Content-Type: application/json
 
 {
@@ -112,7 +126,7 @@ client.global.set("userToken", response.body.Token);
 %}
 
 ### 1.5 Авторизация поставщика
-POST {{apiUrl}}/user/login
+POST {{apiUrl}}/user/login/
 Content-Type: application/json
 
 {
@@ -129,12 +143,12 @@ client.global.set("shopToken", response.body.Token);
 ###############################################################################
 
 ### 2.1 Получить данные пользователя
-GET {{apiUrl}}/user/details
-Authorization: Token e3434d522f96ac980a0ece0f3774fbcf87a24aaf
+GET {{apiUrl}}/user/details/
+Authorization: Token 3d8d4e586c73d69890b102f80729baa782fd1576
 
 ### 2.2 Обновить данные пользователя
-POST {{apiUrl}}/user/details
-Authorization: Token e3434d522f96ac980a0ece0f3774fbcf87a24aaf
+POST {{apiUrl}}/user/details/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 Content-Type: application/json
 
 {
@@ -145,7 +159,7 @@ Content-Type: application/json
 }
 
 ### 2.3 Сброс пароля
-POST {{apiUrl}}/user/password_reset
+POST {{apiUrl}}/user/password_reset/
 Content-Type: application/json
 
 {
@@ -157,38 +171,38 @@ Content-Type: application/json
 ###############################################################################
 
 ### 3.1 Создать контакт
-POST {{apiUrl}}/user/contact
-Authorization: Token e3434d522f96ac980a0ece0f3774fbcf87a24aaf
+POST {{apiUrl}}/user/contact/
+Authorization: Token 3d8d4e586c73d69890b102f80729baa782fd1576
 Content-Type: application/json
 
 {
-  "city": "Москва",
-  "street": "Тверская улица",
+  "city": "Питер",
+  "street": "Солнечная улица",
   "house": "1",
   "apartment": "10",
-  "phone": "+7(999)123-45-67"
+  "phone": "+79991234567"
 }
 
 ### 3.2 Получить контакты
-GET {{apiUrl}}/user/contact
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+GET {{apiUrl}}/user/contact/
+Authorization: Token 3d8d4e586c73d69890b102f80729baa782fd1576
 
 ### 3.3 Обновить контакт (замените ID на реальный)
-PUT {{apiUrl}}/user/contact
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+PUT {{apiUrl}}/user/contact/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 Content-Type: application/json
 
 {
-  "id": 5,
+  "id": 1,
   "city": "Санкт-Петербург",
   "street": "Невский проспект",
   "house": "10",
   "apartment": "5",
-  "phone": "+7(999)987-65-43"
+  "phone": "+79999876543"
 }
 
 ### 3.4 Удалить контакт
-DELETE {{apiUrl}}/user/contact
+DELETE {{apiUrl}}/user/contact/
 Authorization: Token 2cc54c9ef1d372734ce9a65370a31d69d47d3f7b
 Content-Type: application/json
 
@@ -201,51 +215,51 @@ Content-Type: application/json
 ###############################################################################
 
 ### 4.1 Получить категории
-GET {{apiUrl}}/categories
+GET {{apiUrl}}/categories/
 
 ### 4.2 Получить магазины
-GET {{apiUrl}}/shops
+GET {{apiUrl}}/shops/
 
 ### 4.3 Получить все товары
-GET {{apiUrl}}/products
+GET {{apiUrl}}/products/
 
 ### 4.4 Фильтр товаров по категории
 GET {{apiUrl}}/products?category_id=224
 
 ### 4.5 Фильтр товаров по магазину
-GET {{apiUrl}}/products?shop_id=3
+GET {{apiUrl}}/products?shop_id=1
 
 ### 4.6 Фильтр товаров по категории и магазину
-GET {{apiUrl}}/products?category_id=224&shop_id=3
+GET {{apiUrl}}/products?category_id=224&shop_id=1
 
 ###############################################################################
 ### 5. КОРЗИНА
 ###############################################################################
 
 ### 5.1 Получить корзину
-GET {{apiUrl}}/basket
-Authorization: Token b7d8bcf0545900969339473199256f7a01762e0f
+GET {{apiUrl}}/basket/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 
 ### 5.2 Добавить товары в корзину
-POST {{apiUrl}}/basket
-Authorization: Token b7d8bcf0545900969339473199256f7a01762e0f
+POST {{apiUrl}}/basket/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 Content-Type: application/json
 
 {
-  "items": "[{\"product_info\": 71, \"quantity\": 2}, {\"product_info\": 72, \"quantity\": 1}]"
+  "items": "[{\"product_info\": 1, \"quantity\": 2}, {\"product_info\": 2, \"quantity\": 1}]"
 }
 
 ### 5.3 Обновить количество товаров в корзине
-PUT {{apiUrl}}/basket
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+PUT {{apiUrl}}/basket/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 Content-Type: application/json
 
 {
-  "items": "[{\"id\": 10, \"quantity\": 3}]"
+  "items": "[{\"id\": 1, \"quantity\": 3}]"
 }
 
 ### 5.4 Удалить товары из корзины
-DELETE {{apiUrl}}/basket
+DELETE {{apiUrl}}/basket/
 Authorization: Token 2cc54c9ef1d372734ce9a65370a31d69d47d3f7b
 Content-Type: application/json
 
@@ -258,17 +272,17 @@ Content-Type: application/json
 ###############################################################################
 
 ### 6.1 Получить заказы
-GET {{apiUrl}}/order
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+GET {{apiUrl}}/order/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 
 ### 6.2 Создать заказ из корзины (замените ID на реальные)
-POST {{apiUrl}}/order
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+POST {{apiUrl}}/order/
+Authorization: Token 335e5b7de1f3128c665d922e330620e1e6dd7710
 Content-Type: application/json
 
 {
-  "id": 6,
-  "contact": 5
+  "id": 1,
+  "contact": 1
 }
 
 ###############################################################################
@@ -277,11 +291,11 @@ Content-Type: application/json
 
 
 ### 7.1 Получить статус магазина
-GET {{apiUrl}}/partner/state
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+GET {{apiUrl}}/partner/state/
+Authorization: Token 3d8d4e586c73d69890b102f80729baa782fd1576
 
 ### 7.2 Изменить статус магазина
-POST {{apiUrl}}/partner/state
+POST {{apiUrl}}/partner/state/
 Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
 Content-Type: application/json
 
@@ -290,7 +304,7 @@ Content-Type: application/json
 }
 
 ### 7.3 Обновить прайс-лист
-POST {{apiUrl}}/partner/update
+POST {{apiUrl}}/partner/update/
 Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
 Content-Type: application/json
 
@@ -299,8 +313,8 @@ Content-Type: application/json
 }
 
 ### 7.4 Получить заказы поставщика
-GET {{apiUrl}}/partner/orders
-Authorization: Token 220166f2edc1c6dd25d4b6e45b712af3e01ec69f
+GET {{apiUrl}}/partner/orders/
+Authorization: Token 3d8d4e586c73d69890b102f80729baa782fd1576
 
 ###############################################################################
 ### 8. АДМИНИСТРАТИВНЫЕ ФУНКЦИИ
@@ -318,12 +332,12 @@ exit()
 
 
 ### 8.1 Обновить статус заказа (только для администраторов)
-POST {{apiUrl}}/admin/order/status
-Authorization: Token 02a535ca93bcc9753ece8ad454423f05cfd0e044
+POST {{apiUrl}}/admin/order/status/
+Authorization: Token c723a63ef0ece147c18850f76dc8fd9072c11973
 Content-Type: application/json
 
 {
-  "order_id": 3,
+  "order_id": 1,
   "state": "confirmed"
 }
 
@@ -333,7 +347,7 @@ Content-Type: application/json
 
 ### 9.1 Полный сценарий покупки
 ### Шаг 1: Регистрация
-POST {{apiUrl}}/user/register
+POST {{apiUrl}}/user/register/
 Content-Type: application/json
 
 {
@@ -346,7 +360,7 @@ Content-Type: application/json
 }
 
 ### Подтверждение email (замените token на реальный из письма)
-POST {{apiUrl}}/user/register/confirm
+POST {{apiUrl}}/user/register/confirm/
 Content-Type: application/json
 
 {
@@ -355,7 +369,7 @@ Content-Type: application/json
 }
 
 ### Шаг 2: Авторизация
-POST {{apiUrl}}/user/login
+POST {{apiUrl}}/user/login/
 Content-Type: application/json
 
 {
@@ -368,7 +382,7 @@ client.global.set("testBuyerToken", response.body.Token);
 %}
 
 ### Шаг 3: Создание контакта
-POST {{apiUrl}}/user/contact
+POST {{apiUrl}}/user/contact/
 Authorization: Token d07c2440f636f9187d5418b863db6c39c99b0a0e
 Content-Type: application/json
 
@@ -380,7 +394,7 @@ Content-Type: application/json
 }
 
 ### Шаг 4: Просмотр товаров
-GET {{apiUrl}}/products
+GET {{apiUrl}}/products/
 
 ### Шаг 5: Добавление в корзину
 POST {{apiUrl}}/basket
@@ -392,11 +406,11 @@ Content-Type: application/json
 }
 
 ### Шаг 6: Просмотр корзины
-GET {{apiUrl}}/basket
+GET {{apiUrl}}/basket/
 Authorization: Token d07c2440f636f9187d5418b863db6c39c99b0a0e
 
 ### Шаг 7: Оформление заказа
-POST {{apiUrl}}/order
+POST {{apiUrl}}/order/
 Authorization: Token d07c2440f636f9187d5418b863db6c39c99b0a0e
 Content-Type: application/json
 
@@ -410,7 +424,7 @@ Content-Type: application/json
 ###############################################################################
 
 ### 10.1 Регистрация с невалидными данными
-POST {{apiUrl}}/user/register
+POST {{apiUrl}}/user/register/
 Content-Type: application/json
 
 {
@@ -420,7 +434,7 @@ Content-Type: application/json
 }
 
 ### 10.2 Авторизация с неверными данными
-POST {{apiUrl}}/user/login
+POST {{apiUrl}}/user/login/
 Content-Type: application/json
 
 {
@@ -429,10 +443,10 @@ Content-Type: application/json
 }
 
 ### 10.3 Доступ без авторизации
-GET {{apiUrl}}/user/details
+GET {{apiUrl}}/user/details/
 
 ### 10.4 Добавление несуществующего товара в корзину
-POST {{apiUrl}}/basket
+POST {{apiUrl}}/basket/
 Authorization: Token d07c2440f636f9187d5418b863db6c39c99b0a0e
 Content-Type: application/json
 
@@ -441,7 +455,7 @@ Content-Type: application/json
 }
 
 ### 10.5 Создание заказа без контакта
-POST {{apiUrl}}/order
+POST {{apiUrl}}/order/
 Authorization: Token d07c2440f636f9187d5418b863db6c39c99b0a0e
 Content-Type: application/json
 
@@ -454,18 +468,18 @@ Content-Type: application/json
 ###############################################################################
 
 ### 11.1 Массовый запрос товаров (стресс-тест)
-GET {{apiUrl}}/products
+GET {{apiUrl}}/products/
 
 ### 11.2 Множественные запросы корзины
-GET {{apiUrl}}/basket
+GET {{apiUrl}}/basket/
 Authorization: Token d07c2440f636f9187d5418b863db6c39c99b0a0e
 
 ###
-GET {{apiUrl}}/basket
+GET {{apiUrl}}/basket/
 Authorization: Token {{userToken}}
 
 ###
-GET {{apiUrl}}/basket
+GET {{apiUrl}}/basket/
 Authorization: Token {{userToken}}
 
 ###############################################################################
@@ -479,3 +493,9 @@ client.global.clear("shopToken");
 client.global.clear("testBuyerToken");
 client.global.clear("adminToken");
 %}
+
+### Проверка всех пользователей (выполнить в терминале)
+# docker compose exec web python manage.py shell -c 'from backend.models import User; print(list(User.objects.values("email", "is_active", "type")))'
+
+### Очистка тестовых данных (выполнить в терминале)
+# docker compose exec web python manage.py shell -c 'from backend.models import User; User.objects.filter(email__in=["test@example.com", "buyer@test.com"]).delete(); print("Test users deleted")'
