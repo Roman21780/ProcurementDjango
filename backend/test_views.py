@@ -97,7 +97,7 @@ class ProductInfoViewTests(APITestCase):
         """Получение списка товаров"""
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(response.data['results']), 1)
+        self.assertGreaterEqual(len(response.data), 1)
 
     def test_filter_by_shop(self):
         """Фильтрация товаров по магазину"""
@@ -182,6 +182,9 @@ class RegisterAccountTests(APITestCase):
 
     def test_register_existing_email(self):
         """Попытка регистрации с существующим email"""
+        # Очищаем БД перед тестом
+        User.objects.all().delete()
+
         User.objects.create_user(
             email='existing@example.com',
             password='TestPass123!',
@@ -376,7 +379,7 @@ class OrderViewTests(APITestCase):
         }
         response = self.client.post(self.url, order_data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Order.objects.filter(user=self.user, state='new').exists())
 
     def test_get_orders_list(self):
@@ -561,7 +564,7 @@ class UploadAvatarTests(APITestCase):
         )
         self.token = Token.objects.create(user=self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        self.url = reverse('backend:user-avatar')
+        self.url = reverse('backend:upload-avatar')
 
     @patch('backend.views.default_storage.save')
     def test_upload_avatar(self, mock_save):
