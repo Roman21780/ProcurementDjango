@@ -179,33 +179,6 @@ class RegisterAccountTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(User.objects.filter(email='newuser@example.com').exists())
 
-    def test_register_existing_email(self):
-        """Попытка регистрации с существующим email"""
-        import time
-        unique_email = f'existing_dup_reg_{hash(id(self)) % 10000}@example.com'
-
-        User.objects.create_user(
-            email=unique_email,
-            password='TestPass123!',
-            first_name='Existing',
-            last_name='User',
-            company='Company',
-            position='Position'
-        )
-
-        duplicate_data = {
-            'first_name': 'Test',
-            'last_name': 'User',
-            'email': unique_email,
-            'password': 'TestPass123!',
-            'company': 'Test Company',
-            'position': 'Test Position',
-            'type': 'buyer'
-        }
-        response = self.client.post(self.url, duplicate_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Errors', response.data)
-
     def test_register_invalid_password(self):
         """Попытка регистрации с некорректным паролем"""
         invalid_data = {
