@@ -181,8 +181,11 @@ class RegisterAccountTests(APITestCase):
 
     def test_register_existing_email(self):
         """Попытка регистрации с существующим email"""
+        import time
+        unique_email = f'existing_dup_{int(time.time())}@example.com'
+
         User.objects.create_user(
-            email='existing_dup_reg@example.com',
+            email=unique_email,
             password='TestPass123!',
             first_name='Existing',
             last_name='User',
@@ -193,7 +196,7 @@ class RegisterAccountTests(APITestCase):
         duplicate_data = {
             'first_name': 'Test',
             'last_name': 'User',
-            'email': 'existing_dup_reg@example.com',
+            'email': unique_email,
             'password': 'TestPass123!',
             'company': 'Test Company',
             'position': 'Test Position',
@@ -551,7 +554,8 @@ class UploadAvatarTests(APITestCase):
 
     def test_upload_avatar(self):
         """Успешная загрузка аватара"""
-        # Минимальный валидный PNG файл (1x1 пиксель)
+        from unittest.mock import patch
+
         png_data = (
             b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
             b'\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00'
@@ -564,9 +568,11 @@ class UploadAvatarTests(APITestCase):
             content_type='image/png'
         )
 
-        response = self.client.post(self.url, {'avatar': image}, format='multipart')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['Status'])
+        # Мокируем ImageKit обработку
+        with patch('imagekit.registry.generator') as mock_generator:
+            response = self.client.post(self.url, {'avatar': image}, format='multipart')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertTrue(response.data['Status'])
 
     def test_upload_invalid_file(self):
         """Попытка загрузки невалидного файла"""
