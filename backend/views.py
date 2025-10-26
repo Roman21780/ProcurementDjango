@@ -474,6 +474,8 @@ class LoginAccount(APIView):
     Авторизация пользователей
     """
 
+    permission_classes = [AllowAny]
+
     @extend_schema(
         summary="Авторизация",
         description="Авторизация пользователя по email и паролю. Возвращает токен для API.",

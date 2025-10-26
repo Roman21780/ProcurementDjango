@@ -72,7 +72,7 @@ Content-Type: application/json
 
 {
   "email": "{{userEmail}}",
-  "token": "ЗАМЕНИТЕ_НА_РЕАЛЬНЫЙ_ТОКЕН"
+  "token": "7b33de104b208197af7ff9f1a1a677ca7"
 }
 
 ### 1.6 Подтверждение email поставщика (если есть токен)

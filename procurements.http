@@ -60,6 +60,7 @@ Content-Type: application/json
 
 ### 1.1.1 Запрос токена из базы
 ### python manage.py shell
+docker compose exec web python manage.py shell
 ###
 from backend.models import ConfirmEmailToken
 token = ConfirmEmailToken.objects.filter(user__email='test@example.com').first()
